@@ -499,7 +499,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
    ========================================================= */
 const APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
 const APP = 'EntregaAcadêmica';
-const APP_VERSION = '5.1';           // versão deste arquivo
+const APP_VERSION = '5.2';           // versão deste arquivo
 const SHORT_LINK_MIN = '5.1';        // versão publicada mínima que entende links curtos (#/e/…)
 const verNum = v => String(v || '0').split('.').map(Number).reduce((a, n, i) => a + n / Math.pow(1000, i), 0);
 const TAG = '[EA]';
@@ -1077,6 +1077,7 @@ async function watchConfig() {
   if (u.papel !== S.sess.papel) return logout('Seu perfil de acesso foi alterado. Entre novamente.');
   if (u.sessaoRev && u.sessaoRev > S.sess.desde) return logout('Sua senha foi redefinida pelo administrador. Entre com a nova senha.');
   for (const [cid, c] of Object.entries(S.sess.contas)) if (!u.cofres?.[cid] || u.cofres[cid].versao !== c.versao) return logout('As credenciais de acesso foram renovadas pelo administrador. Entre novamente.');
+  checkStale();
   if (u.nome !== S.sess.nome) { S.sess.nome = u.nome; sessStore.set(S.sess); applySession(S.sess); $('#shell')?.remove(); route(); }
 }
 async function doLogin(user, pw, keep) {
@@ -1349,12 +1350,21 @@ async function configForStudent() {
   const k = 'ea:stucfg:' + BOOT.cfg;
   try { const c = JSON.parse(sessionStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < 300000) return c.conf; } catch {}
   let conf;
-  try { conf = JSON.parse(await fetchRaw(`https://gist.githubusercontent.com/${BOOT.owner}/${BOOT.cfg}/raw/config.json`)); }
+  try { conf = JSON.parse(await fetchRaw(`https://gist.githubusercontent.com/${BOOT.owner}/${BOOT.cfg}/raw/config.json?t=${Math.floor(Date.now() / 60000)}`)); }
   catch { conf = await confFromGist((await gh('/gists/' + BOOT.cfg)).data); }
   try { sessionStorage.setItem(k, JSON.stringify({t:Date.now(), conf:{contas:conf.contas}})); } catch {}
   return conf;
 }
 // administradores completam índice e credencial de envio das contas (instalações anteriores)
+function checkStale() {
+  if (!S.conf?.appVersion || S.staleShown || !/^https?:/.test(location.protocol)) return;
+  if (verNum(APP_VERSION) >= verNum(S.conf.appVersion)) return;
+  S.staleShown = true;
+  const go2 = () => { const u = new URL(location.href); u.searchParams.set('v', S.conf.appVersion); location.replace(u.toString()); };
+  modal({title:'Nova versão disponível', size:'sm', body:`<p style="color:var(--text-2)">O sistema foi atualizado para a versão <b>${esc(S.conf.appVersion)}</b> (esta página está na ${APP_VERSION}). Recarregue para usar a versão nova.</p>`,
+    footer:`<button class="btn ghost" data-close>Depois</button><button class="btn primary" id="stOk">${ic('refresh')} Atualizar agora</button>`,
+    onMount(m) { m.$('#stOk').onclick = go2; }});
+}
 async function autoUpdatePublished() {
   if (!isAdmin() || !S.conf?.appUrl || S.autoPub) return;
   if (verNum(APP_VERSION) <= verNum(S.conf.appVersion)) return;
@@ -1387,7 +1397,8 @@ function appBase() {
 function shareLink(id) {
   const b = (S.conf?.linkBase || appBase() || '').replace(/#.*$/, ''); if (!b) return null;
   const code = verNum(S.conf?.appVersion) >= verNum(SHORT_LINK_MIN) ? shortCode(id) : null;
-  return code ? `${b}#/e/${code}` : `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}`;
+  if (!code) return `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}`;
+  return S.conf?.linkBase ? `${b}#/e/${code}` : `${b.replace(/\?.*$/, '')}?e=${code}`;
 }
 function shareMsg(a, link) {
   return `📚 *${a.titulo}*${a.turma ? ` — ${a.turma}` : ''}\n${a.prazo ? `🗓️ Prazo: ${fmtDTlong(a.prazo)}\n` : ''}Envie seu trabalho pelo link:\n${link}`;
@@ -2266,8 +2277,14 @@ async function startStudentShort(code) {
   if (!BOOT) return stuError('Link inválido', 'Abra o link exatamente como foi enviado pelo professor.');
   stuShell(`<div class="card stu-hero"><div class="skel" style="height:16px;width:30%;margin-bottom:12px"></div><div class="skel" style="height:30px;width:80%;margin-bottom:16px"></div><div class="skel" style="height:70px"></div></div><div class="card card-pad"><div class="skel" style="height:260px"></div></div>`);
   try {
-    const conf = await configForStudent();
-    const c = Object.values(conf.contas || {}).find(x => x.idx === ref.idx);
+    let conf = await configForStudent();
+    let c = Object.values(conf.contas || {}).find(x => x.idx === ref.idx);
+    if (!c?.lk) {
+      try { sessionStorage.removeItem('ea:stucfg:' + BOOT.cfg); } catch {}
+      try { conf = await confFromGist((await gh('/gists/' + BOOT.cfg)).data); }
+      catch { conf = JSON.parse(await fetchRaw(`https://gist.githubusercontent.com/${BOOT.owner}/${BOOT.cfg}/raw/config.json?t=${Date.now()}`)); }
+      c = Object.values(conf.contas || {}).find(x => x.idx === ref.idx);
+    }
     if (!c?.lk) throw new Error('conta');
     return startStudent(null, {g:ref.g, t:decodeLink(c.lk).t});
   } catch (e) { return stuError(e.message === 'conta' ? 'Link desativado' : 'Não foi possível abrir a atividade', e.message === 'conta' ? 'Peça o link atualizado ao professor.' : friendlyError(e)); }
@@ -2498,7 +2515,7 @@ function paintMine() {
    ========================================================= */
 function route() {
   const qe = new URLSearchParams(location.search).get('e');
-  if (qe && !location.hash) { history.replaceState(null, '', location.pathname + '#/e/' + qe); }
+  if (qe && !/^#\/e\//.test(location.hash)) { history.replaceState(null, '', location.pathname + '?e=' + encodeURIComponent(qe) + '#/e/' + qe); }
   const h = location.hash.replace(/^#\/?/, ''); const parts = h.split('/');
   S.currentDetail = null; S.onListChange = null; clearInterval(Stu.timer);
   $$('#modal-root .modal-wrap').forEach(w => w.remove());
