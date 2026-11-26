@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F233A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Entregas">
+<meta name="description" content="Compartilhamento e recebimento de trabalhos acadêmicos em tempo real, usando GitHub Gist.">
+<title>EntregaAcadêmica</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231F4E79'/%3E%3Cpath d='M32 15 7 26.5 32 38l25-11.5z' fill='%23fff'/%3E%3Cpath d='M17 32.5v9.5c8.5 6.5 21.5 6.5 30 0v-9.5L32 39.5z' fill='%2336C2B4'/%3E%3C/svg%3E">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F2F5F9;--surface:#FFFFFF;--surface-2:#F7F9FC;--border:#E2E8F0;--border-2:#CBD5E1;
+  --text:#0F1E33;--text-2:#334155;--muted:#64748B;
+  --primary:#1F4E79;--primary-h:#173E61;--primary-50:#EBF2F9;--primary-100:#D5E4F2;--on-primary:#fff;
+  --accent:#16968C;--accent-50:#E2F5F3;
+  --warn:#B9740C;--warn-50:#FDF3E1;--danger:#C93B3B;--danger-50:#FCEAEA;
+  --success:#23885A;--success-50:#E4F5EB;--info:#2F6DB5;--info-50:#E8F0FB;
+  --side:#0F233A;--side-2:#183353;--side-text:#B9C9DC;
+  --radius:16px;--radius-sm:10px;
+  --shadow-sm:0 1px 2px rgba(15,30,51,.06);
+  --shadow:0 1px 2px rgba(15,30,51,.05),0 8px 24px -10px rgba(15,30,51,.14);
+  --shadow-lg:0 30px 70px -15px rgba(15,30,51,.40);
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+[data-theme=dark]{
+  --bg:#0A111C;--surface:#111B2A;--surface-2:#152234;--border:#213148;--border-2:#2D4261;
+  --text:#E8EEF6;--text-2:#C2CFDF;--muted:#8698AF;
+  --primary:#3F82C7;--primary-h:#5796D6;--primary-50:#132840;--primary-100:#1A3556;
+  --accent:#2CB8AB;--accent-50:#0E2D30;
+  --warn:#E3AA4C;--warn-50:#2F240F;--danger:#E66C6C;--danger-50:#361A1E;
+  --success:#43B781;--success-50:#102E1F;--info:#64A0E4;--info-50:#13253C;
+  --side:#070D16;--side-2:#12203A;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 10px 28px -10px rgba(0,0,0,.6);
+}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;text-rendering:optimizeLegibility}
+a{color:var(--primary);text-decoration:none}
+a:hover{text-decoration:underline}
+button,input,select,textarea{font:inherit;color:inherit}
+code{font-family:var(--mono);font-size:.88em;background:var(--surface-2);border:1px solid var(--border);padding:1px 6px;border-radius:6px}
+.ic{width:18px;height:18px;flex:none}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+[hidden]{display:none!important}
+::selection{background:var(--primary-100)}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:10px;border:3px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,transform .05s,box-shadow .15s;user-select:none;-webkit-user-select:none;text-decoration:none!important}
+.btn:hover{background:var(--surface-2);border-color:var(--border-2)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,.input:focus-visible{outline:3px solid var(--primary-100);outline-offset:1px}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--on-primary);box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 4px 12px -4px rgba(31,78,121,.5)}
+.btn.primary:hover{background:var(--primary-h);border-color:var(--primary-h)}
+.btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.accent:hover{filter:brightness(1.06)}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.danger-ghost{color:var(--danger);border-color:transparent;background:transparent}
+.btn.danger-ghost:hover{background:var(--danger-50)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn.sm{height:32px;padding:0 12px;font-size:13px;border-radius:8px}
+.btn.lg{height:50px;padding:0 22px;font-size:16px;border-radius:12px}
+.btn.icon{width:40px;padding:0}
+.btn.icon.sm{width:32px}
+.btn.block{width:100%}
+.btn[disabled]{opacity:.55;pointer-events:none}
+.btn .spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- Forms ---------- */
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field>label,.label{font-size:13px;font-weight:600;color:var(--text-2)}
+.field .hint{font-size:12.5px;color:var(--muted)}
+.req{color:var(--danger)}
+.input{width:100%;height:44px;padding:0 14px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);transition:border-color .15s,box-shadow .15s;font-size:15px}
+textarea.input{height:auto;min-height:96px;padding:12px 14px;resize:vertical;line-height:1.5}
+select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.input:hover{border-color:var(--border-2)}
+.input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 4px var(--primary-50)}
+.input.err{border-color:var(--danger);box-shadow:0 0 0 4px var(--danger-50)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.input-group{display:flex;gap:8px}
+.input-group .input{flex:1;min-width:0}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.toggle:last-child{border-bottom:0}
+.toggle b{display:block;font-size:14.5px;font-weight:600}
+.toggle small{color:var(--muted);font-size:13px}
+.switch{position:relative;width:46px;height:28px;flex:none}
+.switch input{position:absolute;opacity:0;inset:0;cursor:pointer}
+.switch span{position:absolute;inset:0;border-radius:99px;background:var(--border-2);transition:.2s}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.2s}
+.switch input:checked+span{background:var(--accent)}
+.switch input:checked+span::after{transform:translateX(18px)}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;height:34px;padding:0 14px;border-radius:9px;font-weight:600;font-size:13.5px;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:1px solid var(--border);border-radius:99px;background:var(--surface);font-size:13.5px;font-weight:600;color:var(--text-2);cursor:pointer;user-select:none;transition:.15s}
+.chip:hover{border-color:var(--border-2)}
+.chip.on{background:var(--primary-50);border-color:var(--primary);color:var(--primary)}
+.chip .ic{width:15px;height:15px}
+.check{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:var(--text-2);cursor:pointer;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.check input{width:18px;height:18px;margin-top:2px;accent-color:var(--primary);flex:none}
+
+/* ---------- Badges & misc ---------- */
+.badge{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap;letter-spacing:.01em}
+.badge .ic{width:13px;height:13px}
+.badge.success{background:var(--success-50);color:var(--success)}
+.badge.warn{background:var(--warn-50);color:var(--warn)}
+.badge.danger{background:var(--danger-50);color:var(--danger)}
+.badge.info{background:var(--info-50);color:var(--info)}
+.badge.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--border)}
+.badge.accent{background:var(--accent-50);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-pad{padding:22px}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.card-head h3{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+.count{font-size:12px;font-weight:700;background:var(--surface-2);border:1px solid var(--border);border-radius:99px;padding:1px 9px;color:var(--muted)}
+.callout{display:flex;gap:12px;padding:14px 16px;border-radius:12px;font-size:14px;line-height:1.5;align-items:flex-start}
+.callout .ic{margin-top:2px}
+.callout.warn{background:var(--warn-50);color:var(--text-2);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.callout.warn .ic{color:var(--warn)}
+.callout.info{background:var(--info-50);color:var(--text-2);border:1px solid color-mix(in srgb,var(--info) 25%,transparent)}
+.callout.info .ic{color:var(--info)}
+.callout.danger{background:var(--danger-50);color:var(--text-2)}
+.callout.danger .ic{color:var(--danger)}
+.av{--h:210;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:13px;flex:none;background:hsl(var(--h) 60% 92%);color:hsl(var(--h) 55% 32%)}
+[data-theme=dark] .av{background:hsl(var(--h) 40% 22%);color:hsl(var(--h) 70% 80%)}
+.av.lg{width:52px;height:52px;border-radius:16px;font-size:17px}
+.empty{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty .empty-ic{width:64px;height:64px;border-radius:20px;background:var(--primary-50);color:var(--primary);display:grid;place-items:center;margin:0 auto 16px}
+.empty .empty-ic .ic{width:30px;height:30px}
+.empty h3{color:var(--text);font-size:17px;margin-bottom:6px}
+.empty p{max-width:420px;margin:0 auto 18px;font-size:14.5px}
+.skel{background:linear-gradient(90deg,var(--surface-2),var(--border),var(--surface-2));background-size:200% 100%;animation:sk 1.2s infinite;border-radius:10px}
+@keyframes sk{to{background-position:-200% 0}}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.divider{height:1px;background:var(--border);margin:18px 0}
+.kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--border-2);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--muted)}
+
+/* ---------- Shell (professor) ---------- */
+.shell{display:grid;grid-template-columns:256px 1fr;height:100vh;height:100dvh;overflow:hidden}
+.sidebar{background:linear-gradient(180deg,var(--side),var(--side-2));color:var(--side-text);display:flex;flex-direction:column;padding:18px 14px;gap:18px;user-select:none;-webkit-user-select:none;padding-top:max(18px,env(safe-area-inset-top))}
+.brand{display:flex;align-items:center;gap:12px;padding:4px 6px 6px}
+.brand .logo{width:40px;height:40px;flex:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,.25))}
+.brand b{display:block;color:#fff;font-size:16px;letter-spacing:-.01em}
+.brand small{font-size:12px;opacity:.7}
+.side-new{height:44px;background:var(--accent)!important;border-color:var(--accent)!important;box-shadow:0 8px 20px -8px rgba(22,150,140,.7)!important}
+.side-nav{display:flex;flex-direction:column;gap:2px}
+.side-nav a,.side-link{display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;border-radius:10px;color:var(--side-text);font-weight:600;font-size:14.5px;cursor:default;text-decoration:none;border:0;background:none;width:100%;text-align:left}
+.side-nav a:hover,.side-link:hover{background:rgba(255,255,255,.06);color:#fff;text-decoration:none}
+.side-nav a.on{background:rgba(255,255,255,.11);color:#fff;box-shadow:inset 3px 0 0 var(--accent)}
+.nav-badge{margin-left:auto;font-style:normal;font-size:11px;font-weight:800;background:var(--accent);color:#fff;border-radius:99px;padding:1px 8px}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.me{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:rgba(255,255,255,.05)}
+.me img{width:34px;height:34px;border-radius:10px;background:var(--side-2)}
+.me b{display:block;color:#fff;font-size:13.5px;line-height:1.2;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me small{font-size:12px;opacity:.7}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh;height:100dvh}
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;min-height:68px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:saturate(1.4) blur(12px);-webkit-backdrop-filter:saturate(1.4) blur(12px);user-select:none;-webkit-user-select:none;position:relative;z-index:5}
+.top-title{flex:1;min-width:0}
+.top-title h1{font-size:20px;font-weight:750;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-title small{display:block;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-actions{display:flex;align-items:center;gap:6px}
+.live{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:99px;background:var(--success-50);color:var(--success);font-size:12.5px;font-weight:700;white-space:nowrap}
+.live i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 0 currentColor;animation:pulse 2s infinite}
+.live.off{background:var(--danger-50);color:var(--danger)}
+.live.off i{animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.content{flex:1;overflow:auto;padding:28px;scroll-behavior:smooth}
+.wrap{max-width:1180px;margin:0 auto}
+.wrap.narrow{max-width:820px}
+.tabbar{display:none}
+.view-enter{animation:viewIn .28s ease both}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---------- Dashboard ---------- */
+.hello{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.hello h2{font-size:26px;letter-spacing:-.02em;font-weight:780}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.stat{padding:18px 20px;display:flex;gap:14px;align-items:center}
+.stat .s-ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;flex:none}
+.stat .s-ic .ic{width:22px;height:22px}
+.stat b{display:block;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+.stat span{font-size:13px;color:var(--muted);font-weight:600}
+.s1 .s-ic{background:var(--primary-50);color:var(--primary)}
+.s2 .s-ic{background:var(--accent-50);color:var(--accent)}
+.s3 .s-ic{background:var(--warn-50);color:var(--warn)}
+.s4 .s-ic{background:var(--success-50);color:var(--success)}
+.grid-2{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px;align-items:start}
+.grid-2>*{min-width:0}
+.feed-item{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.feed-item:last-child{border-bottom:0}
+.feed-item:hover{background:var(--surface-2)}
+.feed-item .t{flex:1;min-width:0;font-size:14px}
+.feed-item .t b{font-weight:700}
+.feed-item .t small{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-atv{display:block;padding:14px 20px;border-bottom:1px solid var(--border);color:inherit;text-decoration:none!important;transition:background .15s}
+.mini-atv:last-child{border-bottom:0}
+.mini-atv:hover{background:var(--surface-2)}
+.mini-atv .top{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.mini-atv b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini-atv small{color:var(--muted);font-size:12.5px}
+
+/* ---------- Activities ---------- */
+.toolbar{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.search{position:relative;flex:1;min-width:220px}
+.search .ic{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search .input{padding-left:40px}
+.atv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px}
+.atv-card{display:flex;flex-direction:column;gap:14px;padding:20px;color:inherit;text-decoration:none!important;transition:transform .15s,box-shadow .15s,border-color .15s;position:relative;overflow:hidden}
+.atv-card::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:linear-gradient(90deg,var(--primary),var(--accent));opacity:.9}
+.atv-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:var(--primary-100)}
+.atv-card h3{font-size:17px;font-weight:750;letter-spacing:-.01em;line-height:1.3}
+.atv-card .meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.atv-card .meta span{display:inline-flex;align-items:center;gap:6px}
+.atv-card .meta .ic{width:15px;height:15px}
+.atv-card .foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:14px;border-top:1px dashed var(--border)}
+.big-count{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.big-count small{font-size:12.5px;color:var(--muted);font-weight:600;margin-left:4px}
+.new-pill{background:var(--accent);color:#fff;font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:99px;animation:pop .4s}
+@keyframes pop{0%{transform:scale(.6)}70%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+/* ---------- Detail ---------- */
+.hero{padding:24px;margin-bottom:20px}
+.hero-top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.hero h2{font-size:24px;font-weight:800;letter-spacing:-.02em;margin:4px 0 10px;line-height:1.25}
+.hero-meta{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13.5px;color:var(--muted)}
+.hero-meta span{display:inline-flex;align-items:center;gap:6px}
+.hero-meta .ic{width:16px;height:16px}
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+.desc{margin-top:16px;color:var(--text-2);font-size:14.5px;white-space:pre-wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.share{margin-top:18px;padding:16px;border-radius:14px;background:linear-gradient(135deg,var(--primary-50),var(--accent-50));border:1px solid var(--primary-100)}
+.share .label{display:flex;align-items:center;gap:8px;margin-bottom:10px;color:var(--primary)}
+.share .input{font-family:var(--mono);font-size:13px;background:var(--surface)}
+.share-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.stats.s4x .stat{padding:16px 18px}
+.sub-head,.sub-row{display:grid;grid-template-columns:minmax(200px,2.2fr) 1.3fr 1fr 1.2fr .6fr 28px;gap:14px;align-items:center;padding:12px 20px}
+.sub-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--surface-2);border-bottom:1px solid var(--border)}
+.sub-row{border-bottom:1px solid var(--border);cursor:pointer;transition:background .2s}
+.sub-row:last-child{border-bottom:0}
+.sub-row:hover{background:var(--surface-2)}
+.sub-row.old{opacity:.6}
+.sub-row.flash{animation:flash 2.4s ease}
+@keyframes flash{0%,30%{background:var(--accent-50);box-shadow:inset 4px 0 0 var(--accent)}100%{background:transparent;box-shadow:inset 0 0 0 transparent}}
+.who{display:flex;align-items:center;gap:12px;min-width:0}
+.who b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{display:block;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-date{font-size:13.5px}
+.c-date small{display:block;color:var(--muted);font-size:12px}
+.c-files{font-size:13px;color:var(--text-2);display:flex;align-items:center;gap:6px}
+.c-files .ic{width:15px;height:15px;color:var(--muted)}
+.c-status{display:flex;gap:6px;flex-wrap:wrap}
+.c-nota{font-weight:800;font-size:15px}
+.sub-head .c-nota{font-size:12px;font-weight:700}
+.c-go{color:var(--muted)}
+.m-only{display:none}
+
+/* ---------- Setup ---------- */
+.setup{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:1.05fr 1fr}
+.setup-art{background:radial-gradient(1200px 600px at -10% -20%,#2B6CA8 0%,transparent 60%),radial-gradient(800px 500px at 120% 120%,#16968C 0%,transparent 55%),var(--side);color:#DCE7F3;padding:56px 64px;display:flex;flex-direction:column;justify-content:center;gap:28px;position:relative;overflow:hidden}
+.setup-art .brand b{font-size:19px}
+.setup-art h1{font-size:40px;line-height:1.12;letter-spacing:-.03em;color:#fff;font-weight:800;max-width:560px}
+.setup-art p{font-size:17px;opacity:.85;max-width:520px}
+.feats{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:560px}
+.feat{display:flex;gap:12px;padding:14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+.feat .ic{color:#5FD3C7;width:20px;height:20px;margin-top:2px}
+.feat b{display:block;color:#fff;font-size:14px}
+.feat small{font-size:12.5px;opacity:.75}
+.setup-side{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.setup-card{width:100%;max-width:480px;padding:32px}
+.setup-card h2{font-size:22px;letter-spacing:-.02em;margin-bottom:6px}
+.steps-mini{margin:18px 0 20px;padding:0;list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:10px}
+.steps-mini li{counter-increment:s;display:flex;gap:12px;font-size:14px;color:var(--text-2)}
+.steps-mini li::before{content:counter(s);flex:none;width:24px;height:24px;border-radius:8px;background:var(--primary-50);color:var(--primary);font-weight:800;font-size:12.5px;display:grid;place-items:center}
+
+/* ---------- Student ---------- */
+.stu{min-height:100vh;min-height:100dvh;background:radial-gradient(900px 380px at 50% -120px,color-mix(in srgb,var(--primary) 22%,transparent),transparent),var(--bg)}
+.stu-bar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:12px 20px;padding-top:max(12px,env(safe-area-inset-top));background:color-mix(in srgb,var(--side) 96%,transparent);backdrop-filter:blur(10px);color:#fff}
+.stu-bar .logo{width:34px;height:34px}
+.stu-bar b{font-size:15px;display:block;line-height:1.2}
+.stu-bar small{font-size:12px;opacity:.7}
+.stu-main{max-width:760px;margin:0 auto;padding:24px 16px calc(40px + env(safe-area-inset-bottom))}
+.stu-hero{padding:24px;margin-bottom:16px}
+.stu-hero h1{font-size:24px;line-height:1.25;letter-spacing:-.02em;margin:6px 0 12px;font-weight:800}
+.deadline{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;margin-top:16px;background:var(--surface-2);border:1px solid var(--border)}
+.deadline .d-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--primary-50);color:var(--primary);flex:none}
+.deadline b{display:block;font-size:15px}
+.deadline small{color:var(--muted);font-size:13px}
+.deadline.late .d-ic{background:var(--danger-50);color:var(--danger)}
+.deadline.soon .d-ic{background:var(--warn-50);color:var(--warn)}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:4px;margin-bottom:16px;box-shadow:var(--shadow-sm)}
+.tabs button{flex:1;height:42px;border:0;background:none;border-radius:10px;font-weight:700;font-size:14px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.tabs button.on{background:var(--primary);color:#fff}
+.drop{border:2px dashed var(--border-2);border-radius:16px;padding:28px 18px;text-align:center;cursor:pointer;background:var(--surface-2);transition:.2s}
+.drop:hover,.drop.over{border-color:var(--primary);background:var(--primary-50)}
+.drop .d-ic{width:56px;height:56px;border-radius:16px;background:var(--surface);color:var(--primary);display:grid;place-items:center;margin:0 auto 12px;box-shadow:var(--shadow)}
+.drop .d-ic .ic{width:26px;height:26px}
+.drop b{display:block;font-size:15px}
+.drop small{color:var(--muted);font-size:13px}
+.flist{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.fitem{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.fitem .f-ic{width:38px;height:38px;border-radius:10px;background:var(--primary-50);color:var(--primary);display:grid;place-items:center;flex:none;font-size:10px;font-weight:800;text-transform:uppercase}
+.fitem .t{flex:1;min-width:0}
+.fitem .t b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.fitem .t small{color:var(--muted);font-size:12.5px}
+.fitem.bad{border-color:var(--danger);background:var(--danger-50)}
+.done{text-align:center;padding:36px 24px}
+.done .ok{width:84px;height:84px;border-radius:50%;background:var(--success-50);color:var(--success);display:grid;place-items:center;margin:0 auto 18px;animation:pop .5s}
+.done .ok .ic{width:42px;height:42px;stroke-width:2.5}
+.done h2{font-size:24px;letter-spacing:-.02em;margin-bottom:6px}
+.proto{display:inline-flex;align-items:center;gap:10px;margin:18px 0 8px;padding:12px 18px;border-radius:14px;background:var(--surface-2);border:1px dashed var(--border-2);font-family:var(--mono);font-size:22px;font-weight:800;letter-spacing:.08em;color:var(--primary)}
+.progress{height:10px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--border)}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:99px;transition:width .25s}
+.pstep{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);padding:6px 0}
+.pstep .dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border-2);display:grid;place-items:center;flex:none}
+.pstep.on{color:var(--text);font-weight:600}
+.pstep.on .dot{border-color:var(--primary);border-top-color:transparent;animation:spin .8s linear infinite}
+.pstep.ok{color:var(--success)}
+.pstep.ok .dot{border-color:var(--success);background:var(--success);color:#fff}
+.pstep .dot .ic{width:13px;height:13px;stroke-width:3}
+.my-sub{padding:16px 18px;border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:10px}
+.my-sub .top{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.fb{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--surface-2);border-left:3px solid var(--accent);font-size:14px;white-space:pre-wrap}
+.nota-big{font-size:28px;font-weight:800;color:var(--accent);letter-spacing:-.02em}
+
+/* ---------- Modal / Toast ---------- */
+.modal-wrap{position:fixed;inset:0;z-index:100;background:rgba(8,15,28,.5);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;transition:opacity .2s}
+.modal-wrap.in{opacity:1}
+.modal{background:var(--surface);border-radius:20px;box-shadow:var(--shadow-lg);width:100%;max-width:560px;max-height:calc(100dvh - 48px);display:flex;flex-direction:column;transform:translateY(12px) scale(.98);transition:transform .22s cubic-bezier(.2,.8,.2,1);border:1px solid var(--border)}
+.modal-wrap.in .modal{transform:none}
+.modal.sm{max-width:420px}
+.modal.lg{max-width:760px}
+.modal.xl{max-width:1000px;height:calc(100dvh - 48px)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px 12px 24px}
+.modal-head h3{font-size:18px;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-body{padding:6px 24px 20px;overflow:auto;flex:1}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);flex-wrap:wrap}
+.modal-foot .spacer{flex:1}
+.sheet-handle{display:none}
+.preview-box{height:100%;min-height:300px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:12px;overflow:auto}
+.preview-box img{max-width:100%;max-height:100%;object-fit:contain}
+.preview-box iframe{width:100%;height:100%;border:0;border-radius:12px;background:#fff}
+.preview-box pre{width:100%;height:100%;margin:0;padding:16px;font-family:var(--mono);font-size:13px;white-space:pre-wrap;overflow:auto;align-self:stretch}
+#toasts{position:fixed;z-index:200;right:20px;bottom:20px;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.toast{display:flex;align-items:center;gap:10px;min-width:260px;max-width:380px;padding:12px 16px;border-radius:14px;background:var(--side);color:#fff;box-shadow:var(--shadow-lg);font-size:14px;font-weight:500;transform:translateY(16px);opacity:0;transition:.25s cubic-bezier(.2,.8,.2,1);pointer-events:auto}
+.toast.in{transform:none;opacity:1}
+.toast .ic{flex:none}
+.toast.success .ic{color:#5FD3C7}
+.toast.error .ic{color:#FF8A8A}
+.toast.new{background:linear-gradient(135deg,#16968C,#1F4E79)}
+.info-list{display:flex;flex-direction:column;gap:2px;margin:12px 0}
+.info-list div{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
+.info-list div span{color:var(--muted)}
+.info-list div b{font-weight:600;text-align:right;word-break:break-word}
+.file-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px}
+.file-row .t{flex:1;min-width:0}
+.file-row b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.file-row small{color:var(--muted);font-size:12.5px}
+.help-steps{display:flex;flex-direction:column;gap:14px}
+.help-step{display:flex;gap:14px}
+.help-step .n{width:32px;height:32px;border-radius:10px;background:var(--primary);color:#fff;font-weight:800;display:grid;place-items:center;flex:none}
+.help-step b{display:block;margin-bottom:2px}
+.help-step p{font-size:14px;color:var(--text-2)}
+.section-title{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px}
+.form-card{padding:24px;margin-bottom:18px}
+.form-card h3{font-size:16px;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+.form-card h3 .ic{color:var(--primary)}
+.form-card>p{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.sticky-actions{position:sticky;bottom:0;display:flex;gap:10px;justify-content:flex-end;padding:14px 0;background:linear-gradient(transparent,var(--bg) 35%)}
+
+/* ---------- Responsive (mobile = app) ---------- */
+@media (max-width:1080px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .grid-2{grid-template-columns:minmax(0,1fr)}
+  .sub-head,.sub-row{grid-template-columns:minmax(180px,2fr) 1.2fr 1fr 1.2fr 28px}
+  .c-nota{display:none}
+  .sub-head .c-nota{display:none}
+}
+@media (max-width:860px){
+  body{font-size:15.5px}
+  .shell{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  .sidebar{display:none}
+  .main{height:auto;min-height:0;overflow:hidden}
+  .topbar{padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));min-height:58px;background:var(--side);color:#fff;border-bottom:0}
+  .topbar .btn.ghost{color:#fff}
+  .topbar .btn.ghost:hover{background:rgba(255,255,255,.1)}
+  .top-title h1{font-size:18px}
+  .top-title small{color:rgba(255,255,255,.65);font-size:12px}
+  .live{background:rgba(95,211,199,.15);color:#5FD3C7;height:26px;padding:0 10px;font-size:11.5px}
+  .live.off{background:rgba(255,138,138,.15);color:#FF9C9C}
+  .content{padding:16px 14px 24px}
+  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);align-items:end;background:var(--surface);border-top:1px solid var(--border);padding:6px 6px calc(6px + env(safe-area-inset-bottom));user-select:none;-webkit-user-select:none;box-shadow:0 -6px 20px -12px rgba(15,30,51,.2);z-index:20}
+  .tabbar a,.tabbar button{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--muted);text-decoration:none!important;padding:6px 0;position:relative;border:0;background:none;cursor:pointer}
+  .tabbar a .ic,.tabbar button .ic{width:22px;height:22px}
+  .tabbar a.on{color:var(--primary)}
+  .tabbar .nav-badge{position:absolute;top:0;left:calc(50% + 6px);margin:0;font-size:10px;padding:0 6px}
+  .tabbar .tab-fab{width:56px;height:56px;border-radius:18px;margin:-26px auto 0;background:linear-gradient(135deg,var(--accent),var(--primary));color:#fff;display:grid;place-items:center;box-shadow:0 10px 24px -8px rgba(22,150,140,.8);padding:0}
+  .tabbar .tab-fab .ic{width:26px;height:26px}
+  .hello h2{font-size:22px}
+  .stats{gap:10px;margin-bottom:16px}
+  .stat{padding:14px;gap:10px;flex-direction:column;align-items:flex-start}
+  .stat .s-ic{width:38px;height:38px;border-radius:12px}
+  .stat b{font-size:22px}
+  .row,.row3{grid-template-columns:1fr;gap:0}
+  .atv-grid{grid-template-columns:1fr;gap:12px}
+  .hero{padding:18px}
+  .hero h2{font-size:20px}
+  .hero-actions{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .hero-actions .btn{width:100%}
+  .sub-head{display:none}
+  .sub-row{grid-template-columns:1fr auto;grid-template-areas:"who status" "meta meta";gap:8px 12px;padding:14px 16px}
+  .sub-row .who{grid-area:who}
+  .sub-row .c-status{grid-area:status;justify-content:flex-end}
+  .sub-row .c-date,.sub-row .c-files,.sub-row .c-go,.sub-row .c-nota{display:none}
+  .m-only{display:flex}
+  .sub-row .m-meta{grid-area:meta;gap:14px;font-size:12.5px;color:var(--muted);padding-left:50px;flex-wrap:wrap}
+  .sub-row .m-meta span{display:inline-flex;align-items:center;gap:5px}
+  .sub-row .m-meta .ic{width:14px;height:14px}
+  .card-head{padding:14px 16px}
+  .modal-wrap{align-items:flex-end;padding:0}
+  .modal,.modal.sm,.modal.lg,.modal.xl{max-width:none;border-radius:22px 22px 0 0;max-height:92dvh;transform:translateY(100%);border-bottom:0}
+  .modal.xl{height:92dvh}
+  .modal-wrap.in .modal{transform:none}
+  .sheet-handle{display:block;width:40px;height:5px;border-radius:99px;background:var(--border-2);margin:8px auto 0}
+  .modal-head{padding:10px 16px 8px 20px}
+  .modal-body{padding:4px 20px 18px}
+  .modal-foot{padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+  .modal-foot .btn{flex:1}
+  .modal-foot .spacer{display:none}
+  #toasts{left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));align-items:center}
+  .stu #toasts,.stu~#toasts{bottom:calc(16px + env(safe-area-inset-bottom))}
+  .toast{min-width:0;width:100%}
+  .setup{grid-template-columns:1fr}
+  .setup-art{padding:40px 24px 32px;padding-top:max(40px,env(safe-area-inset-top));gap:18px}
+  .setup-art h1{font-size:28px}
+  .setup-art p{font-size:15px}
+  .feats{grid-template-columns:1fr 1fr;gap:8px}
+  .feat{padding:10px;flex-direction:column;gap:6px}
+  .feat small{display:none}
+  .setup-side{padding:0 14px 32px;margin-top:-16px;position:relative}
+  .setup-card{padding:22px}
+  .stu-hero{padding:18px}
+  .stu-hero h1{font-size:21px}
+  .btn{height:44px}
+  .btn.sm{height:36px}
+  .input{height:48px;font-size:16px}
+  .hide-m{display:none!important}
+  .sticky-actions{position:static;background:none}
+  .sticky-actions .btn{flex:1}
+}
+@media (min-width:861px){.hide-d{display:none!important}}
+@media (display-mode:standalone){body{user-select:none;-webkit-user-select:none}input,textarea,.selectable{user-select:text;-webkit-user-select:text}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-root"></div>
+<div id="toasts" aria-live="polite"></div>
+<script>
+'use strict';
+/* =========================================================
+   EntregaAcadêmica — compartilhamento de trabalhos via GitHub Gist
+   Arquivo único. Professor: configura token GitHub (escopo gist).
+   Aluno: abre o link #/entregar/<código> e envia o trabalho.
+   ========================================================= */
+const APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+const APP = 'EntregaAcadêmica';
+const TAG = '[EA]';
+const TAG_ANX = '[EA-anexo]';
+const API = 'https://api.github.com';
+const JSZIP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+
+/* ---------- utilidades ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('ea:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('ea:' + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem('ea:' + k); } catch {} }
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const uid = () => Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+const protoCode = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (let i = 0; i < 6; i++) s += a[Math.floor(Math.random() * a.length)]; return 'EA-' + s; };
+const fmtDT = d => d ? new Date(d).toLocaleString('pt-BR', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}).replace('.', '') : '—';
+const fmtDTlong = d => d ? new Date(d).toLocaleString('pt-BR', {weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit'}) : '—';
+const fmtDate = d => new Date(d).toLocaleDateString('pt-BR', {day:'2-digit', month:'short', year:'numeric'}).replace('.', '');
+function rel(d) {
+  const s = (Date.now() - new Date(d)) / 1000;
+  if (s < 45) return 'agora mesmo';
+  if (s < 3600) return `há ${Math.round(s / 60)} min`;
+  if (s < 86400) return `há ${Math.round(s / 3600)} h`;
+  if (s < 86400 * 7) { const n = Math.round(s / 86400); return `há ${n} dia${n > 1 ? 's' : ''}`; }
+  return fmtDate(d);
+}
+function until(d) {
+  const s = (new Date(d) - Date.now()) / 1000, a = Math.abs(s); let t;
+  if (a < 3600) t = `${Math.max(1, Math.round(a / 60))} min`;
+  else if (a < 86400) { const n = Math.round(a / 3600); t = `${n} hora${n > 1 ? 's' : ''}`; }
+  else { const n = Math.round(a / 86400); t = `${n} dia${n > 1 ? 's' : ''}`; }
+  return s >= 0 ? `em ${t}` : `há ${t}`;
+}
+const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? Math.round(b / 1024) + ' KB' : (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
+const initials = n => (n || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const avatar = (n, cls = '') => `<span class="av ${cls}" style="--h:${hue(n)}">${esc(initials(n))}</span>`;
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const extOf = n => (String(n).split('.').pop() || '').toLowerCase();
+const tsFromName = n => { const m = String(n).match(/^entrega_([a-z0-9]+)_/); return m ? parseInt(m[1], 36) : 0; };
+const toLocalInput = d => { if (!d) return ''; const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); };
+const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || 'arquivo';
+
+/* ---------- ícones ---------- */
+const ICONS = {
+  home:'<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  folder:'<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  sliders:'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  trash:'<path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>',
+  eye:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  refresh:'<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  unlock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+  arrowLeft:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  chevron:'<path d="m9 18 6-6-6-6"/>',
+  cap:'<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  alert:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>',
+  key:'<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+  globe:'<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  award:'<circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/>',
+  chat:'<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
+  external:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/>',
+  phone:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
+  help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>',
+  sheet:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M10 9H8"/>',
+  zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.22-8.56"/>'
+};
+const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+const LOGO = `<svg viewBox="0 0 64 64" class="logo" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#1F4E79"/><path d="M32 15 7 26.5 32 38l25-11.5z" fill="#fff"/><path d="M17 32.5v9.5c8.5 6.5 21.5 6.5 30 0v-9.5L32 39.5z" fill="#36C2B4"/><path d="M54 27.5v11" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>`;
+
+/* ---------- formatos de arquivo ---------- */
+const FORMATOS = {
+  pdf:{label:'PDF', ext:['pdf']},
+  doc:{label:'Word / Texto', ext:['doc','docx','odt','rtf','txt','md']},
+  ppt:{label:'Apresentações', ext:['ppt','pptx','odp','key']},
+  xls:{label:'Planilhas', ext:['xls','xlsx','ods','csv']},
+  img:{label:'Imagens', ext:['png','jpg','jpeg','gif','webp','heic','svg']},
+  zip:{label:'Compactados', ext:['zip','rar','7z']},
+  code:{label:'Código-fonte', ext:['py','js','ts','java','c','cpp','h','cs','html','css','ipynb','json','sql','r','php','go','kt','swift']}
+};
+const allowedExts = a => (a.formatos && a.formatos.length) ? a.formatos.flatMap(k => FORMATOS[k]?.ext || []) : null;
+const STATUS = {
+  recebido:{t:'Recebido', k:'info', i:'inbox'},
+  correcao:{t:'Em correção', k:'warn', i:'edit'},
+  avaliado:{t:'Avaliado', k:'success', i:'award'},
+  ajuste:{t:'Ajustes solicitados', k:'danger', i:'alert'}
+};
+const stBadge = s => { const m = STATUS[s] || STATUS.recebido; return `<span class="badge ${m.k}">${ic(m.i)}${m.t}</span>`; };
+
+/* ---------- codificação do link do aluno ---------- */
+const LK = new TextEncoder().encode('EntregaAcademica·v1');
+const xorB = b => b.map((x, i) => x ^ LK[i % LK.length]);
+function b64uEnc(bytes) { let s = ''; bytes.forEach(b => s += String.fromCharCode(b)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function b64uDec(str) { str = str.replace(/-/g, '+').replace(/_/g, '/'); while (str.length % 4) str += '='; const s = atob(str); return Uint8Array.from(s, c => c.charCodeAt(0)); }
+const encodeLink = o => b64uEnc(xorB(new TextEncoder().encode(JSON.stringify(o))));
+const decodeLink = s => JSON.parse(new TextDecoder().decode(xorB(b64uDec(s))));
+
+/* ---------- API GitHub ---------- */
+class ApiError extends Error { constructor(status, msg) { super(msg || ('Erro ' + status)); this.status = status; } }
+async function gh(path, {method = 'GET', body, token, etag} = {}) {
+  const headers = {'Accept':'application/vnd.github+json'};
+  if (token) headers.Authorization = 'Bearer ' + token;
+  if (etag) headers['If-None-Match'] = etag;
+  if (body) headers['Content-Type'] = 'application/json';
+  const r = await fetch(API + path, {method, headers, body: body ? JSON.stringify(body) : undefined, cache:'no-store'});
+  if (r.status === 304) return {notModified:true};
+  if (!r.ok) { let m; try { m = (await r.json()).message; } catch {} throw new ApiError(r.status, m); }
+  if (r.status === 204) return {data:null, headers:r.headers};
+  return {data: await r.json(), etag: r.headers.get('ETag'), headers: r.headers};
+}
+function ghUpload(path, method, body, token, onProgress) {
+  return new Promise((res, rej) => {
+    const x = new XMLHttpRequest();
+    x.open(method, API + path);
+    x.setRequestHeader('Accept', 'application/vnd.github+json');
+    x.setRequestHeader('Authorization', 'Bearer ' + token);
+    x.setRequestHeader('Content-Type', 'application/json');
+    x.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) { try { res(JSON.parse(x.responseText)); } catch { res({}); } }
+      else { let m; try { m = JSON.parse(x.responseText).message; } catch {} rej(new ApiError(x.status, m)); }
+    };
+    x.onerror = () => rej(new TypeError('network'));
+    x.send(JSON.stringify(body));
+  });
+}
+function friendlyError(e) {
+  if (!e) return 'Erro desconhecido.';
+  if (e instanceof TypeError || e.message === 'network') return 'Sem conexão com a internet. Verifique sua rede e tente novamente.';
+  switch (e.status) {
+    case 401: return 'Token inválido, expirado ou revogado.';
+    case 403: return 'Acesso negado ou limite de requisições do GitHub atingido. Aguarde alguns minutos.';
+    case 404: return 'Não encontrado. O item pode ter sido removido.';
+    case 413: return 'Arquivo grande demais para envio.';
+    case 422: return 'O GitHub recusou os dados' + (e.message ? `: ${e.message}` : '.') ;
+    default: return e.message || 'Erro inesperado.';
+  }
+}
+function parseActivityGist(g) {
+  const f = g.files || {};
+  let atv = {}; try { atv = JSON.parse(f['atividade.json'].content); } catch {}
+  let aval = {}; try { aval = JSON.parse(f['avaliacoes.json']?.content || '{}'); } catch {}
+  const entregas = Object.keys(f).filter(n => n.startsWith('entrega_')).map(n => {
+    try { const e = JSON.parse(f[n].content); e._file = n; return e; } catch { return null; }
+  }).filter(Boolean).sort((a, b) => new Date(b.enviadoEm) - new Date(a.enviadoEm));
+  // reenvios
+  const groups = {};
+  [...entregas].reverse().forEach(e => { const k = norm(e.matricula) || norm(e.nome); (groups[k] = groups[k] || []).push(e); });
+  Object.values(groups).forEach(arr => arr.forEach((e, i) => { e._reenvio = i > 0; e._substituida = i < arr.length - 1; }));
+  return {id:g.id, atv, aval, entregas, updated:g.updated_at, created:g.created_at, owner:g.owner?.login};
+}
+function atvStatus(a) {
+  if (!a || !a.titulo) return {k:'muted', t:'Carregando…', i:'clock'};
+  if (a.aberta === false) return {k:'muted', t:'Encerrada', i:'lock'};
+  if (a.prazo) {
+    const ms = new Date(a.prazo) - Date.now();
+    if (ms < 0) return a.aceitarAtrasados ? {k:'warn', t:'Prazo vencido', i:'clock'} : {k:'danger', t:'Prazo encerrado', i:'lock'};
+    if (ms < 86400000 * 2) return {k:'warn', t:'Vence ' + until(a.prazo), i:'clock'};
+  }
+  return {k:'success', t:'Recebendo entregas', i:'zap'};
+}
+const canSubmit = a => !(a.aberta === false || (a.prazo && new Date(a.prazo) < Date.now() && !a.aceitarAtrasados));
+const b64ToBlob = (b64, type) => { const bin = atob(String(b64).replace(/\s/g, '')); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], {type: type || 'application/octet-stream'}); };
+const readB64 = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+function downloadBlob(blob, name) { const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
+
+/* ---------- UI genérica ---------- */
+function toast(msg, type = 'info', ms = 3600) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = `${ic(type === 'success' ? 'check' : type === 'error' ? 'alert' : type === 'new' ? 'inbox' : 'bell')}<span>${esc(msg)}</span>`;
+  $('#toasts').appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 300); }, ms);
+}
+function modal({title = '', body = '', footer = '', size = '', onMount, onClose} = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-wrap';
+  wrap.innerHTML = `<div class="modal ${size}" role="dialog" aria-modal="true"><div class="sheet-handle"></div><div class="modal-head"><h3>${esc(title)}</h3><button class="btn icon ghost sm" data-close aria-label="Fechar">${ic('x')}</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-foot">${footer}</div>` : ''}</div>`;
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; wrap.classList.remove('in'); document.removeEventListener('keydown', onKey); setTimeout(() => wrap.remove(), 230); onClose && onClose(); };
+  const onKey = e => { if (e.key === 'Escape' && wrap === $('#modal-root').lastElementChild) close(); };
+  wrap.addEventListener('click', e => { if (e.target === wrap || e.target.closest('[data-close]')) close(); });
+  document.addEventListener('keydown', onKey);
+  $('#modal-root').appendChild(wrap);
+  requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('in')));
+  const m = {el: wrap.querySelector('.modal'), wrap, close, $: s => wrap.querySelector(s)};
+  onMount && onMount(m);
+  return m;
+}
+function confirmDlg(msg, {ok = 'Confirmar', danger = false, title = 'Confirmar ação'} = {}) {
+  return new Promise(res => {
+    let val = false;
+    modal({title, size:'sm', body:`<p style="color:var(--text-2)">${esc(msg)}</p>`,
+      footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn ${danger ? 'danger' : 'primary'}" data-ok>${esc(ok)}</button>`,
+      onMount(m) { m.$('[data-ok]').onclick = () => { val = true; m.close(); }; setTimeout(() => m.$('[data-ok]').focus(), 50); },
+      onClose() { res(val); }});
+  });
+}
+async function copyText(t, msg = 'Copiado para a área de transferência') {
+  try { await navigator.clipboard.writeText(t); }
+  catch { const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+  toast(msg, 'success');
+}
+function busy(btn, on, label) {
+  if (!btn) return;
+  if (on) { btn._html = btn.innerHTML; btn.disabled = true; btn.innerHTML = `${ic('loader', 'spin')}${label ? `<span>${esc(label)}</span>` : ''}`; }
+  else { btn.disabled = false; if (btn._html) btn.innerHTML = btn._html; }
+}
+
+/* ---------- tema, PWA, som, notificações ---------- */
+function applyTheme() {
+  const t = store.get('theme', 'auto');
+  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  $('meta[name=theme-color]').content = dark ? '#070D16' : '#0F233A';
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
+let ICON192 = '';
+function setupPWA() {
+  try {
+    const mk = s => {
+      const c = document.createElement('canvas'); c.width = c.height = s; const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, s, s); g.addColorStop(0, '#1F4E79'); g.addColorStop(1, '#0F233A');
+      x.fillStyle = g; x.fillRect(0, 0, s, s);
+      const k = s / 64 * .72, o = s * .14; x.translate(o, o + s * .02); x.scale(k, k);
+      x.fillStyle = '#fff'; x.beginPath(); x.moveTo(32, 15); x.lineTo(7, 26.5); x.lineTo(32, 38); x.lineTo(57, 26.5); x.closePath(); x.fill();
+      x.fillStyle = '#36C2B4'; x.beginPath(); x.moveTo(17, 32.5); x.lineTo(17, 42); x.bezierCurveTo(25.5, 48.5, 38.5, 48.5, 47, 42); x.lineTo(47, 32.5); x.lineTo(32, 39.5); x.closePath(); x.fill();
+      x.strokeStyle = '#fff'; x.lineWidth = 3; x.lineCap = 'round'; x.beginPath(); x.moveTo(54, 27.5); x.lineTo(54, 38.5); x.stroke();
+      return c.toDataURL('image/png');
+    };
+    ICON192 = mk(192); const i512 = mk(512);
+    const base = location.href.split('#')[0];
+    const man = {name:APP, short_name:'Entregas', description:'Trabalhos acadêmicos em tempo real', start_url: location.href, scope: base.replace(/[^/]*$/, ''), display:'standalone', orientation:'any', background_color:'#0F233A', theme_color:'#0F233A',
+      icons:[{src:ICON192, sizes:'192x192', type:'image/png'}, {src:i512, sizes:'512x512', type:'image/png', purpose:'any maskable'}]};
+    let l = $('link[rel=manifest]'); if (!l) { l = document.createElement('link'); l.rel = 'manifest'; document.head.appendChild(l); }
+    l.href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(man));
+    let a = $('link[rel=apple-touch-icon]'); if (!a) { a = document.createElement('link'); a.rel = 'apple-touch-icon'; document.head.appendChild(a); }
+    a.href = ICON192;
+  } catch {}
+}
+let deferredPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; $$('.install-btn').forEach(b => b.hidden = false); });
+addEventListener('appinstalled', () => { deferredPrompt = null; $$('.install-btn').forEach(b => b.hidden = true); toast('Aplicativo instalado!', 'success'); });
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+async function installApp() {
+  if (deferredPrompt) { deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $$('.install-btn').forEach(b => b.hidden = true); return; }
+  modal({title:'Instalar como aplicativo', body:`<div class="help-steps">
+    <div class="help-step"><span class="n">${ic('phone')}</span><div><b>Android (Chrome)</b><p>Toque em ⋮ no canto superior e escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</p></div></div>
+    <div class="help-step"><span class="n">${ic('share')}</span><div><b>iPhone / iPad (Safari)</b><p>Toque em <b>Compartilhar</b> e depois em <b>Adicionar à Tela de Início</b>.</p></div></div>
+    <div class="help-step"><span class="n">${ic('globe')}</span><div><b>Computador (Chrome / Edge)</b><p>Clique no ícone de instalação na barra de endereço, ou Menu → <b>Transmitir, salvar e compartilhar → Instalar página como app</b>. Ele abre em janela própria, como um programa nativo.</p></div></div></div>`});
+}
+let actx;
+function chime() {
+  if (!store.get('som', true)) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime;
+    [784, 1175].forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, t + i * .13); g.gain.exponentialRampToValueAtTime(.16, t + i * .13 + .02); g.gain.exponentialRampToValueAtTime(.0001, t + i * .13 + .45);
+      o.connect(g).connect(actx.destination); o.start(t + i * .13); o.stop(t + i * .13 + .5);
+    });
+  } catch {}
+}
+function sysNotify(title, body) {
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const n = new Notification(title, {body, icon: ICON192, tag: 'ea-' + Date.now()});
+      n.onclick = () => { focus(); n.close(); };
+    }
+  } catch {}
+}
+
+/* =========================================================
+   PROFESSOR
+   ========================================================= */
+const S = {
+  mode:'prof', cfg: store.get('cfg', null), list: store.get('list', []), meta: store.get('meta', {}),
+  seen: store.get('seen', {}), unreadBy: store.get('unreadBy', {}), details:{}, listEtag:null,
+  currentDetail:null, onListChange:null, lastSync:0, lastListPoll:0, lastDetailPoll:0, flash:new Set(),
+  filter:'', atvFilter:'todas', live:true
+};
+const saveCfg = () => store.set('cfg', S.cfg);
+const go = p => { location.hash = '#/' + p; };
+const firstName = () => (S.cfg?.name || '').split(' ')[0] || 'Professor(a)';
+function totalUnread() { return Object.values(S.unreadBy).reduce((a, b) => a + b, 0); }
+function updateBadges() {
+  const n = totalUnread();
+  document.title = (n ? `(${n}) ` : '') + APP;
+  $$('.nav-badge').forEach(b => { b.hidden = !n; b.textContent = n; });
+  try { if (navigator.setAppBadge) n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } catch {}
+}
+function setLive(ok) {
+  S.live = ok;
+  const el = $('#live'); if (!el) return;
+  el.classList.toggle('off', !ok);
+  const s = S.lastSync ? Math.round((Date.now() - S.lastSync) / 1000) : null;
+  el.querySelector('span').textContent = ok ? (s == null || s < 5 ? 'Ao vivo' : `Ao vivo · ${s}s`) : 'Offline';
+}
+
+function ensureShell() {
+  if ($('#shell')) return;
+  const c = S.cfg;
+  $('#app').innerHTML = `
+  <div id="shell" class="shell">
+    <aside class="sidebar">
+      <div class="brand">${LOGO}<div><b>${APP}</b><small>Trabalhos em tempo real</small></div></div>
+      <a class="btn primary block side-new" href="#/nova">${ic('plus')} Nova atividade</a>
+      <nav class="side-nav">
+        <a data-nav="painel" href="#/painel">${ic('home')}<span>Painel</span></a>
+        <a data-nav="atividades" href="#/atividades">${ic('folder')}<span>Atividades</span><em class="nav-badge" hidden></em></a>
+        <a data-nav="config" href="#/config">${ic('sliders')}<span>Configurações</span></a>
+        <button class="side-link" onclick="showHelp()">${ic('help')}<span>Como funciona</span></button>
+      </nav>
+      <div class="side-foot">
+        <button class="side-link install-btn" ${deferredPrompt ? '' : 'hidden'} onclick="installApp()">${ic('phone')}<span>Instalar aplicativo</span></button>
+        <div class="me"><img src="${esc(c.avatar || ICON192)}" alt=""><div><b>${esc(c.name)}</b><small>@${esc(c.login)}</small></div></div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <button class="btn icon ghost" id="backBtn" hidden aria-label="Voltar">${ic('arrowLeft')}</button>
+        <div class="top-title"><h1 id="pageTitle"></h1><small id="pageSub"></small></div>
+        <div class="top-actions">
+          <span class="live" id="live" title="Sincronização automática com o GitHub Gist"><i></i><span>Ao vivo</span></span>
+          <button class="btn icon ghost" id="refreshBtn" title="Atualizar agora (R)" aria-label="Atualizar">${ic('refresh')}</button>
+        </div>
+      </header>
+      <main class="content" id="view"></main>
+    </div>
+    <nav class="tabbar">
+      <a data-nav="painel" href="#/painel">${ic('home')}<span>Painel</span></a>
+      <a data-nav="atividades" href="#/atividades">${ic('folder')}<span>Atividades</span><em class="nav-badge" hidden></em></a>
+      <a class="tab-fab" href="#/nova" aria-label="Nova atividade">${ic('plus')}</a>
+      <a data-nav="config" href="#/config">${ic('sliders')}<span>Ajustes</span></a>
+      <button onclick="showHelp()">${ic('help')}<span>Ajuda</span></button>
+    </nav>
+  </div>`;
+  $('#refreshBtn').onclick = () => manualRefresh();
+  $('#backBtn').onclick = () => { if (history.length > 1) history.back(); else go('atividades'); };
+  updateBadges();
+}
+function setPage({nav, title, sub = '', back = false}) {
+  $$('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === nav));
+  $('#pageTitle').textContent = title;
+  $('#pageSub').textContent = sub;
+  $('#backBtn').hidden = !back;
+  document.querySelector('.content').scrollTop = 0;
+}
+function viewHTML(html, cls = 'wrap') { const v = $('#view'); v.innerHTML = `<div class="${cls} view-enter">${html}</div>`; return v; }
+async function manualRefresh() {
+  const b = $('#refreshBtn'); b.querySelector('svg').classList.add('spin');
+  try {
+    await syncList(true);
+    if (S.currentDetail) { S.details[S.currentDetail] && (S.details[S.currentDetail].etag = null); await refreshDetail(S.currentDetail); }
+    S.onListChange && S.onListChange();
+    toast('Dados atualizados', 'success', 1800);
+  } catch (e) { toast(friendlyError(e), 'error'); }
+  b.querySelector('svg').classList.remove('spin');
+}
+window.showHelp = () => modal({title:'Como funciona', size:'lg', body:`<div class="help-steps">
+  <div class="help-step"><span class="n">1</span><div><b>Crie uma atividade</b><p>Defina título, turma, instruções, prazo e formatos aceitos. Ela fica salva num Gist secreto da sua conta GitHub.</p></div></div>
+  <div class="help-step"><span class="n">2</span><div><b>Envie o link para a turma</b><p>Copie o link exclusivo da atividade e compartilhe por WhatsApp, e-mail ou no ambiente virtual. Os alunos não precisam de conta.</p></div></div>
+  <div class="help-step"><span class="n">3</span><div><b>Os alunos enviam o trabalho pelo link</b><p>Eles preenchem nome e matrícula, anexam arquivos (ou um link) e recebem um protocolo de entrega.</p></div></div>
+  <div class="help-step"><span class="n">4</span><div><b>Você recebe em tempo real</b><p>As entregas aparecem automaticamente, com alerta sonoro e notificação. Visualize, baixe, avalie com nota e devolutiva — o aluno consulta pelo protocolo.</p></div></div>
+  </div><div class="divider"></div>
+  <div class="callout info">${ic('zap')}<div><b>Atalhos de teclado:</b> <span class="kbd">N</span> nova atividade · <span class="kbd">/</span> buscar · <span class="kbd">R</span> atualizar · <span class="kbd">Esc</span> fechar janelas</div></div>`});
+
+/* ---------- sincronização ---------- */
+function parseDesc(d) { const s = (d || '').slice(TAG.length).trim(); const i = s.indexOf(' ¦ '); return i > 0 ? {titulo:s.slice(0, i), turma:s.slice(i + 3)} : {titulo:s, turma:''}; }
+async function syncList(force) {
+  const r = await gh('/gists?per_page=100', {token:S.cfg.token, etag: force ? null : S.listEtag});
+  S.lastSync = Date.now(); setLive(true);
+  if (r.notModified) return false;
+  S.listEtag = r.etag;
+  const items = r.data.filter(g => (g.description || '').startsWith(TAG + ' ') && g.files && g.files['atividade.json']).map(g => {
+    const {titulo, turma} = parseDesc(g.description);
+    const mt = S.meta[g.id]; return {id:g.id, titulo: mt?.titulo || titulo, turma: mt?.turma ?? turma, entregas:Object.keys(g.files).filter(n => n.startsWith('entrega_')), updated:g.updated_at, created:g.created_at};
+  });
+  const novas = [];
+  items.forEach(it => {
+    const prev = S.seen[it.id];
+    if (prev) it.entregas.forEach(n => { if (!prev.includes(n)) novas.push({id:it.id, titulo:it.titulo, file:n}); });
+    S.seen[it.id] = it.entregas;
+  });
+  S.list = items; store.set('list', items); store.set('seen', S.seen);
+  if (novas.length) onNew(novas);
+  return true;
+}
+function onNew(novas) {
+  novas.forEach(n => {
+    if (S.currentDetail !== n.id || document.hidden) S.unreadBy[n.id] = (S.unreadBy[n.id] || 0) + 1;
+    S.flash.add(n.file.replace(/^entrega_|\.json$/g, ''));
+  });
+  store.set('unreadBy', S.unreadBy); updateBadges(); chime();
+  const one = novas[0], nome = one.nome ? one.nome + ' — ' : '';
+  const msg = novas.length === 1 ? `Nova entrega: ${nome}${one.titulo}` : `${novas.length} novas entregas recebidas`;
+  toast(msg, 'new', 5000);
+  sysNotify(novas.length === 1 ? 'Nova entrega recebida' : `${novas.length} novas entregas`, novas.length === 1 ? `${nome}${one.titulo}` : novas.map(n => n.titulo).filter((v, i, a) => a.indexOf(v) === i).join(', '));
+  const cur = S.currentDetail;
+  if (cur && novas.some(n => n.id === cur)) { if (S.details[cur]) S.details[cur].etag = null; refreshDetail(cur, true).catch(() => {}); }
+}
+const metaOf = d => ({titulo:d.atv.titulo, turma:d.atv.turma, prazo:d.atv.prazo, aberta:d.atv.aberta, aceitarAtrasados:d.atv.aceitarAtrasados});
+async function loadDetail(id, {force} = {}) {
+  const c = S.details[id];
+  const r = await gh('/gists/' + id, {token:S.cfg.token, etag: force || !c ? null : c.etag});
+  if (r.notModified) return {changed:false, d:c.d};
+  const d = parseActivityGist(r.data);
+  S.details[id] = {d, etag:r.etag};
+  S.meta[id] = metaOf(d); store.set('meta', S.meta);
+  return {changed:true, d, prev:c?.d};
+}
+async function refreshDetail(id, silent) {
+  const {changed, d, prev} = await loadDetail(id);
+  S.lastSync = Date.now(); setLive(true);
+  if (!changed) return;
+  const names = d.entregas.map(e => e._file);
+  const seen = S.seen[id] || [];
+  const novas = d.entregas.filter(e => !seen.includes(e._file));
+  S.seen[id] = names; store.set('seen', S.seen);
+  if (prev && novas.length && !silent) onNew(novas.map(e => ({id, titulo:d.atv.titulo, nome:e.nome, file:e._file})));
+  if (S.currentDetail === id) paintDetail(id);
+}
+let pollTimer;
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (S.mode !== 'prof' || !S.cfg) return;
+    const now = Date.now(), hidden = document.hidden;
+    setLive(S.live);
+    if (S.currentDetail && now - S.lastDetailPoll >= (hidden ? 30000 : 7000)) {
+      S.lastDetailPoll = now;
+      refreshDetail(S.currentDetail).catch(onPollErr);
+    }
+    if (now - S.lastListPoll >= (hidden ? 30000 : 15000)) {
+      S.lastListPoll = now;
+      syncList().then(ch => { if (ch && S.onListChange) S.onListChange(); }).catch(onPollErr);
+    }
+  }, 3000);
+}
+function onPollErr(e) {
+  setLive(false);
+  if (e.status === 401) { toast('Seu token do GitHub não é mais válido. Configure novamente.', 'error', 6000); }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && S.mode === 'prof' && S.cfg) {
+    S.lastListPoll = 0; S.lastDetailPoll = 0;
+    if (S.currentDetail && S.unreadBy[S.currentDetail]) { delete S.unreadBy[S.currentDetail]; store.set('unreadBy', S.unreadBy); updateBadges(); }
+  }
+});
+
+/* ---------- link de compartilhamento ---------- */
+function appBase() {
+  if (S.cfg?.appUrl) return S.cfg.appUrl.split('#')[0];
+  if (/^https?:/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname)) return location.href.split('#')[0];
+  return null;
+}
+function shareLink(id) { const b = appBase(); return b ? `${b}#/entregar/${encodeLink({g:id, t:S.cfg.token})}` : null; }
+function shareMsg(a, link) {
+  return `📚 *${a.titulo}*${a.turma ? ` — ${a.turma}` : ''}\n${a.prazo ? `🗓️ Prazo: ${fmtDTlong(a.prazo)}\n` : ''}Envie seu trabalho pelo link:\n${link}`;
+}
+function shareBox(id, a) {
+  const link = shareLink(id);
+  if (!link) return `<div class="share"><div class="callout warn" style="background:transparent;border:0;padding:0">${ic('alert')}<div><b>Defina o endereço público do app para gerar links.</b><br>Você está abrindo o sistema a partir de um arquivo local. Publique o app no seu Gist com um clique para obter um endereço acessível pelos alunos.<div style="margin-top:10px"><button class="btn primary sm" id="pubNow">${ic('globe')} Publicar app agora</button></div></div></div></div>`;
+  return `<div class="share">
+    <div class="label">${ic('link')} Link de entrega para os alunos</div>
+    <div class="input-group"><input class="input selectable" id="shareInput" readonly value="${esc(link)}"><button class="btn primary" id="copyLink">${ic('copy')}<span class="hide-m">Copiar</span></button></div>
+    <div class="share-btns">
+      <a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(shareMsg(a, link))}">${ic('chat')} WhatsApp</a>
+      <a class="btn sm" href="mailto:?subject=${encodeURIComponent('Entrega: ' + a.titulo)}&body=${encodeURIComponent(shareMsg(a, link).replace(/\*/g, ''))}">${ic('mail')} E-mail</a>
+      ${navigator.share ? `<button class="btn sm" id="nativeShare">${ic('share')} Compartilhar</button>` : ''}
+      <button class="btn sm" id="copyMsg">${ic('copy')} Copiar com mensagem</button>
+      <a class="btn sm ghost" target="_blank" rel="noopener" href="${esc(link)}">${ic('external')} Abrir como aluno</a>
+    </div></div>`;
+}
+function bindShare(root, id, a) {
+  const link = shareLink(id);
+  const pb = $('#pubNow', root); if (pb) pb.onclick = async () => { busy(pb, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Links liberados.', 'success'); paintDetail(id); } catch (e) { toast(friendlyError(e), 'error'); busy(pb, false); } };
+  if (!link) return;
+  $('#copyLink', root).onclick = () => copyText(link, 'Link copiado! Envie para a turma.');
+  $('#shareInput', root).onclick = e => e.target.select();
+  $('#copyMsg', root).onclick = () => copyText(shareMsg(a, link).replace(/\*/g, ''), 'Mensagem com link copiada');
+  const ns = $('#nativeShare', root); if (ns) ns.onclick = () => navigator.share({title:a.titulo, text:shareMsg(a, link).replace(/\*/g, '').replace(link, '').trim(), url:link}).catch(() => {});
+}
+async function publishApp() {
+  const files = {'index.html': {content: APP_SOURCE}};
+  let g = null;
+  if (S.cfg.appGist) { try { g = (await gh('/gists/' + S.cfg.appGist, {method:'PATCH', token:S.cfg.token, body:{files}})).data; } catch (e) { if (e.status !== 404) throw e; } }
+  if (!g) g = (await gh('/gists', {method:'POST', token:S.cfg.token, body:{description:'EntregaAcadêmica — aplicativo web', public:false, files}})).data;
+  S.cfg.appGist = g.id;
+  S.cfg.appUrl = `https://gist.githack.com/${g.owner.login}/${g.id}/raw/index.html`;
+  saveCfg();
+}
+
+/* ---------- SETUP ---------- */
+function viewSetup() {
+  clearInterval(pollTimer);
+  $('#app').innerHTML = `
+  <div class="setup">
+    <section class="setup-art">
+      <div class="brand">${LOGO}<div><b>${APP}</b><small style="opacity:.7">Plataforma de entregas acadêmicas</small></div></div>
+      <h1>Receba os trabalhos da turma em tempo real, com um único link.</h1>
+      <p>Crie a atividade, compartilhe o link e acompanhe cada entrega chegando — sem servidor, sem mensalidade. Tudo fica guardado com segurança em Gists secretos da sua conta GitHub.</p>
+      <div class="feats">
+        <div class="feat">${ic('link')}<div><b>Link único</b><small>Alunos enviam sem criar conta</small></div></div>
+        <div class="feat">${ic('zap')}<div><b>Tempo real</b><small>Alerta sonoro e notificação</small></div></div>
+        <div class="feat">${ic('award')}<div><b>Avaliação</b><small>Nota e devolutiva por protocolo</small></div></div>
+        <div class="feat">${ic('phone')}<div><b>Vira app</b><small>Instale no celular e no PC</small></div></div>
+      </div>
+    </section>
+    <section class="setup-side">
+      <form class="card setup-card" id="setupForm" autocomplete="off">
+        <div class="eyebrow">Acesso do professor</div>
+        <h2>Conectar ao GitHub Gist</h2>
+        <p class="muted small">É o seu “banco de dados”: atividades e entregas ficam em Gists secretos.</p>
+        <ol class="steps-mini">
+          <li><span>Use uma conta GitHub — de preferência <b>uma conta exclusiva para as aulas</b>.</span></li>
+          <li><span><a href="https://github.com/settings/tokens/new?scopes=gist&description=EntregaAcademica" target="_blank" rel="noopener">Gere um token clássico</a> marcando <b>somente</b> a permissão <code>gist</code>.</span></li>
+          <li><span>Cole o token abaixo e informe seu nome.</span></li>
+        </ol>
+        <div class="field"><label for="sName">Seu nome (visível para os alunos) <span class="req">*</span></label><input class="input" id="sName" required placeholder="Ex.: Profa. Ana Ribeiro" value="${esc(store.get('lastName', ''))}"></div>
+        <div class="field"><label for="sToken">Token do GitHub <span class="req">*</span></label><input class="input" id="sToken" required placeholder="ghp_…" type="password" spellcheck="false" autocomplete="off"><span class="hint">Fica salvo apenas neste dispositivo.</span></div>
+        <div class="callout warn small" style="margin-bottom:18px">${ic('shield')}<div>O token vai <b>codificado dentro do link</b> enviado aos alunos — é ele que permite gravar as entregas. Por isso use uma conta dedicada e só a permissão <code>gist</code>.</div></div>
+        <button class="btn primary lg block" id="sBtn" type="submit">${ic('key')} Conectar e começar</button>
+      </form>
+    </section>
+  </div>`;
+  $('#setupForm').onsubmit = async e => {
+    e.preventDefault();
+    const name = $('#sName').value.trim(), token = $('#sToken').value.trim(), btn = $('#sBtn');
+    if (!name || !token) return;
+    busy(btn, true, 'Verificando…');
+    try {
+      const r = await gh('/user', {token});
+      const scopes = r.headers.get('X-OAuth-Scopes');
+      if (scopes !== null && scopes !== '' && !scopes.split(',').map(s => s.trim()).includes('gist')) throw new ApiError(0, 'Este token não tem a permissão "gist". Gere outro marcando essa opção.');
+      S.cfg = {token, name, login:r.data.login, avatar:r.data.avatar_url};
+      if (/^https?:/.test(location.protocol) && location.hostname.includes('githack')) S.cfg.appUrl = location.href.split('#')[0];
+      saveCfg(); store.set('lastName', name);
+      toast(`Conectado como @${r.data.login}`, 'success');
+      startPolling(); go('painel'); route();
+    } catch (err) { busy(btn, false); toast(err.status === 0 ? err.message : friendlyError(err), 'error', 6000); }
+  };
+}
+
+/* ---------- PAINEL ---------- */
+function greeting() { const h = new Date().getHours(); return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'; }
+async function viewPainel() {
+  setPage({nav:'painel', title:'Painel', sub:new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long'})});
+  viewHTML(`<div class="hello"><div><div class="eyebrow">Visão geral</div><h2>${greeting()}, ${esc(firstName())}</h2></div></div>
+    <div class="stats">${'<div class="card stat"><div class="skel" style="width:100%;height:46px"></div></div>'.repeat(4)}</div>
+    <div class="card card-pad"><div class="skel" style="height:180px"></div></div>`);
+  S.onListChange = paintPainel;
+  if (S.list.length) paintPainel();
+  try { await syncList(true); } catch (e) { setLive(false); if (!S.list.length) toast(friendlyError(e), 'error'); }
+  paintPainel();
+  const recent = [...S.list].sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 8);
+  for (const it of recent) { if (!S.details[it.id] || !S.meta[it.id]) { try { await loadDetail(it.id); } catch {} } }
+  if (location.hash.startsWith('#/painel') || location.hash === '' || location.hash === '#/') paintPainel();
+}
+function paintPainel() {
+  if (!$('#view') || S.currentDetail) return;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const total = S.list.reduce((a, i) => a + i.entregas.length, 0);
+  const hoje = S.list.reduce((a, i) => a + i.entregas.filter(n => tsFromName(n) >= today.getTime()).length, 0);
+  const abertas = S.list.filter(i => { const m = S.meta[i.id]; return !m || canSubmit(m); }).length;
+  let avaliadas = 0, pend = 0;
+  Object.values(S.details).forEach(({d}) => d.entregas.filter(e => !e._substituida).forEach(e => { (d.aval[e.id]?.status === 'avaliado') ? avaliadas++ : pend++; }));
+  const feed = [];
+  Object.values(S.details).forEach(({d}) => d.entregas.forEach(e => feed.push({e, d})));
+  feed.sort((a, b) => new Date(b.e.enviadoEm) - new Date(a.e.enviadoEm));
+  const empty = !S.list.length;
+  const needUrl = !appBase();
+  viewHTML(`
+    <div class="hello"><div><div class="eyebrow">Visão geral</div><h2>${greeting()}, ${esc(firstName())}</h2></div>
+      <a class="btn primary hide-m" href="#/nova">${ic('plus')} Nova atividade</a></div>
+    ${needUrl && !empty ? `<div class="callout warn" style="margin-bottom:18px">${ic('globe')}<div><b>Falta um passo para gerar os links dos alunos:</b> publique o app no seu Gist. <a href="#/config">Abrir configurações →</a></div></div>` : ''}
+    <div class="stats">
+      <div class="card stat s1"><div class="s-ic">${ic('folder')}</div><div><b>${abertas}</b><span>Atividades abertas</span></div></div>
+      <div class="card stat s2"><div class="s-ic">${ic('inbox')}</div><div><b>${total}</b><span>Entregas recebidas</span></div></div>
+      <div class="card stat s3"><div class="s-ic">${ic('clock')}</div><div><b>${hoje}</b><span>Recebidas hoje</span></div></div>
+      <div class="card stat s4"><div class="s-ic">${ic('award')}</div><div><b>${avaliadas}<small class="muted" style="font-size:14px;font-weight:600"> / ${avaliadas + pend}</small></b><span>Avaliadas</span></div></div>
+    </div>
+    ${empty ? `<div class="card"><div class="empty"><div class="empty-ic">${ic('cap')}</div><h3>Crie sua primeira atividade</h3><p>Em menos de um minuto você terá um link para enviar à turma. As entregas chegam aqui automaticamente.</p><a class="btn primary lg" href="#/nova">${ic('plus')} Nova atividade</a></div></div>` : `
+    <div class="grid-2">
+      <section class="card">
+        <div class="card-head"><h3>${ic('inbox')} Entregas recentes</h3><span class="live" style="height:24px;font-size:11.5px"><i></i>tempo real</span></div>
+        ${feed.length ? feed.slice(0, 8).map(({e, d}) => `
+          <div class="feed-item" data-go="${d.id}" data-eid="${esc(e.id)}">${avatar(e.nome)}
+            <div class="t"><b>${esc(e.nome)}</b> entregou<small>${esc(d.atv.titulo)} · ${rel(e.enviadoEm)}</small></div>
+            ${e.atrasado ? '<span class="badge warn hide-m">Atrasado</span>' : ''}${stBadge(d.aval[e.id]?.status)}
+          </div>`).join('') : `<div class="empty"><div class="empty-ic">${ic('inbox')}</div><h3>Nenhuma entrega ainda</h3><p>Compartilhe o link de uma atividade. Assim que um aluno enviar, ela aparece aqui.</p></div>`}
+      </section>
+      <section class="card">
+        <div class="card-head"><h3>${ic('folder')} Atividades</h3><a class="btn sm ghost" href="#/atividades">Ver todas ${ic('chevron')}</a></div>
+        ${[...S.list].sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 5).map(it => {
+          const m = S.meta[it.id], st = atvStatus(m || {titulo:it.titulo}), un = S.unreadBy[it.id];
+          return `<a class="mini-atv" href="#/atividade/${it.id}"><div class="top"><b>${esc(it.titulo)}</b>${un ? `<span class="new-pill">+${un}</span>` : `<span class="badge ${st.k}">${st.t}</span>`}</div>
+            <small>${esc(it.turma || 'Sem turma')} · ${it.entregas.length} entrega${it.entregas.length === 1 ? '' : 's'}${m?.prazo ? ' · prazo ' + fmtDT(m.prazo) : ''}</small></a>`;
+        }).join('')}
+      </section>
+    </div>`}`);
+  $$('.feed-item').forEach(el => el.onclick = () => { S.openEid = el.dataset.eid; go('atividade/' + el.dataset.go); });
+}
+
+/* ---------- LISTA DE ATIVIDADES ---------- */
+async function viewAtividades() {
+  setPage({nav:'atividades', title:'Atividades', sub:'Todas as atividades e seus links de entrega'});
+  S.onListChange = paintAtividades;
+  paintAtividades();
+  try { await syncList(true); paintAtividades(); } catch (e) { setLive(false); toast(friendlyError(e), 'error'); }
+  for (const it of S.list) { if (!S.meta[it.id]) { try { await loadDetail(it.id); if (location.hash.startsWith('#/atividades')) paintAtividades(); } catch {} } }
+}
+function paintAtividades() {
+  if (!location.hash.startsWith('#/atividades')) return;
+  const q = norm(S.filter);
+  const list = [...S.list].sort((a, b) => new Date(b.created) - new Date(a.created)).filter(it => {
+    const m = S.meta[it.id];
+    if (q && !norm(it.titulo + ' ' + it.turma).includes(q)) return false;
+    if (S.atvFilter === 'abertas') return !m || canSubmit(m);
+    if (S.atvFilter === 'encerradas') return m && !canSubmit(m);
+    return true;
+  });
+  const prevFocus = document.activeElement?.id;
+  viewHTML(`
+    <div class="toolbar">
+      <div class="search">${ic('search')}<input class="input" id="atvSearch" placeholder="Buscar por título ou turma…" value="${esc(S.filter)}"></div>
+      <div class="seg" id="atvSeg">${['todas', 'abertas', 'encerradas'].map(k => `<button data-k="${k}" class="${S.atvFilter === k ? 'on' : ''}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+      <a class="btn primary hide-m" href="#/nova">${ic('plus')} Nova atividade</a>
+    </div>
+    ${list.length ? `<div class="atv-grid">${list.map(it => {
+      const m = S.meta[it.id], st = atvStatus(m || {}), un = S.unreadBy[it.id];
+      return `<a class="card atv-card" href="#/atividade/${it.id}">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div style="min-width:0"><div class="eyebrow">${esc(it.turma || 'Sem turma')}</div><h3>${esc(it.titulo)}</h3></div>${un ? `<span class="new-pill">+${un} nova${un > 1 ? 's' : ''}</span>` : ''}</div>
+        <div class="meta"><span>${ic('calendar')}${m?.prazo ? fmtDT(m.prazo) : 'Sem prazo'}</span><span>${ic('clock')}Criada ${rel(it.created)}</span></div>
+        <div class="foot"><div class="big-count">${it.entregas.length}<small>entrega${it.entregas.length === 1 ? '' : 's'}</small></div><span class="badge ${st.k}">${ic(st.i)}${st.t}</span></div>
+      </a>`; }).join('')}</div>` :
+    `<div class="card"><div class="empty"><div class="empty-ic">${ic(S.list.length ? 'search' : 'folder')}</div><h3>${S.list.length ? 'Nada encontrado' : 'Nenhuma atividade ainda'}</h3><p>${S.list.length ? 'Tente outro termo ou filtro.' : 'Crie uma atividade para gerar o link de entrega da turma.'}</p>${S.list.length ? '' : `<a class="btn primary" href="#/nova">${ic('plus')} Nova atividade</a>`}</div></div>`}`);
+  const si = $('#atvSearch');
+  si.oninput = () => { S.filter = si.value; clearTimeout(si._t); si._t = setTimeout(() => { paintAtividades(); const n = $('#atvSearch'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 180); };
+  if (prevFocus === 'atvSearch') { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
+  $$('#atvSeg button').forEach(b => b.onclick = () => { S.atvFilter = b.dataset.k; paintAtividades(); });
+}
+
+/* ---------- FORMULÁRIO DE ATIVIDADE ---------- */
+async function viewForm(editId) {
+  setPage({nav: editId ? 'atividades' : 'nova', title: editId ? 'Editar atividade' : 'Nova atividade', sub: editId ? 'As alterações aparecem na hora para os alunos' : 'Configure e gere o link de entrega', back:true});
+  let a = {modo:'arquivo', formatos:['pdf', 'doc'], maxMB:5, maxArquivos:3, exigirMatricula:true, exigirEmail:false, permitirReenvio:true, aceitarAtrasados:false, aberta:true};
+  if (editId) {
+    viewHTML('<div class="card card-pad"><div class="skel" style="height:300px"></div></div>', 'wrap narrow');
+    try { const {d} = await loadDetail(editId); a = {...a, ...d.atv}; } catch (e) { toast(friendlyError(e), 'error'); return go('atividades'); }
+  }
+  const tg = (id, on, t, s) => `<label class="toggle"><div><b>${t}</b><small>${s}</small></div><span class="switch"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span></span></span></label>`;
+  viewHTML(`<form id="atvForm" autocomplete="off">
+    <section class="card form-card"><h3>${ic('cap')} Informações da atividade</h3><p>O que os alunos verão ao abrir o link.</p>
+      <div class="field"><label for="fTitulo">Título <span class="req">*</span></label><input class="input" id="fTitulo" required maxlength="120" placeholder="Ex.: Resenha crítica — Capítulo 3" value="${esc(a.titulo || '')}"></div>
+      <div class="row"><div class="field"><label for="fTurma">Disciplina / Turma</label><input class="input" id="fTurma" maxlength="80" placeholder="Ex.: Sociologia · 2º ano B" value="${esc(a.turma || '')}"></div>
+      <div class="field"><label for="fPrazo">Prazo de entrega</label><input class="input" id="fPrazo" type="datetime-local" value="${toLocalInput(a.prazo)}"><span class="hint">Deixe vazio para não ter prazo.</span></div></div>
+      <div class="field" style="margin-bottom:0"><label for="fDesc">Instruções para os alunos</label><textarea class="input" id="fDesc" rows="5" maxlength="4000" placeholder="Descreva o que deve ser entregue, critérios de avaliação, formatação…">${esc(a.descricao || '')}</textarea></div>
+    </section>
+    <section class="card form-card"><h3>${ic('upload')} Formato da entrega</h3><p>Como os alunos vão enviar o trabalho.</p>
+      <div class="field"><span class="label">Tipo de entrega</span><div class="seg" id="fModo">
+        <button type="button" data-k="arquivo">${'Arquivo'}</button><button type="button" data-k="link">Link (Drive, GitHub…)</button><button type="button" data-k="ambos">Arquivo e/ou link</button></div></div>
+      <div id="fileOpts">
+        <div class="field"><span class="label">Formatos aceitos <span class="muted" style="font-weight:500">(nenhum marcado = qualquer formato)</span></span><div class="chips" id="fFmts">
+          ${Object.entries(FORMATOS).map(([k, f]) => `<button type="button" class="chip ${a.formatos?.includes(k) ? 'on' : ''}" data-k="${k}" title=".${f.ext.join(' .')}">${ic('check')}${f.label}</button>`).join('')}</div></div>
+        <div class="row"><div class="field"><label for="fMax">Tamanho máximo por arquivo</label><select class="input" id="fMax">${[1, 2, 5, 8].map(n => `<option value="${n}" ${a.maxMB == n ? 'selected' : ''}>${n} MB</option>`).join('')}</select></div>
+        <div class="field"><label for="fQtd">Máximo de arquivos por aluno</label><select class="input" id="fQtd">${[1, 2, 3, 5].map(n => `<option value="${n}" ${a.maxArquivos == n ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
+      </div>
+    </section>
+    <section class="card form-card"><h3>${ic('sliders')} Regras</h3><p>Controle dados exigidos e comportamento do prazo.</p>
+      ${tg('fMat', a.exigirMatricula, 'Exigir matrícula / RA', 'Identifica o aluno e agrupa reenvios.')}
+      ${tg('fEmail', a.exigirEmail, 'Exigir e-mail', 'Útil para enviar devolutivas por fora.')}
+      ${tg('fReenvio', a.permitirReenvio, 'Permitir reenvio', 'O aluno pode enviar nova versão; a anterior fica marcada como substituída.')}
+      ${tg('fAtraso', a.aceitarAtrasados, 'Aceitar entregas após o prazo', 'Entregas atrasadas são marcadas automaticamente.')}
+      ${tg('fAberta', a.aberta !== false, 'Atividade aberta', 'Desative para bloquear novas entregas imediatamente.')}
+    </section>
+    <div class="sticky-actions"><a class="btn ghost" href="${editId ? '#/atividade/' + editId : '#/atividades'}">Cancelar</a><button class="btn primary lg" id="fSave" type="submit">${ic(editId ? 'check' : 'link')} ${editId ? 'Salvar alterações' : 'Criar e gerar link'}</button></div>
+  </form>`, 'wrap narrow');
+  let modo = a.modo, fmts = new Set(a.formatos || []);
+  const paintModo = () => { $$('#fModo button').forEach(b => b.classList.toggle('on', b.dataset.k === modo)); $('#fileOpts').hidden = modo === 'link'; };
+  paintModo();
+  $$('#fModo button').forEach(b => b.onclick = () => { modo = b.dataset.k; paintModo(); });
+  $$('#fFmts .chip').forEach(c => c.onclick = () => { const k = c.dataset.k; fmts.has(k) ? fmts.delete(k) : fmts.add(k); c.classList.toggle('on'); });
+  if (!editId) setTimeout(() => $('#fTitulo').focus(), 100);
+  $('#atvForm').onsubmit = async e => {
+    e.preventDefault();
+    const titulo = $('#fTitulo').value.trim(); if (!titulo) { $('#fTitulo').classList.add('err'); return $('#fTitulo').focus(); }
+    const prazoV = $('#fPrazo').value;
+    const atv = {v:1, titulo, turma:$('#fTurma').value.trim(), descricao:$('#fDesc').value.trim(), prazo: prazoV ? new Date(prazoV).toISOString() : null,
+      modo, formatos:[...fmts], maxMB:+$('#fMax').value, maxArquivos:+$('#fQtd').value,
+      exigirMatricula:$('#fMat').checked, exigirEmail:$('#fEmail').checked, permitirReenvio:$('#fReenvio').checked, aceitarAtrasados:$('#fAtraso').checked, aberta:$('#fAberta').checked,
+      professor:S.cfg.name, criadoEm:a.criadoEm || new Date().toISOString(), atualizadoEm:new Date().toISOString()};
+    const btn = $('#fSave'); busy(btn, true, editId ? 'Salvando…' : 'Criando…');
+    const description = `${TAG} ${atv.titulo}${atv.turma ? ' ¦ ' + atv.turma : ''}`;
+    try {
+      let id = editId;
+      if (editId) {
+        await gh('/gists/' + editId, {method:'PATCH', token:S.cfg.token, body:{description, files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}}}});
+        if (S.details[editId]) S.details[editId].etag = null;
+        toast('Atividade atualizada', 'success');
+      } else {
+        const r = await gh('/gists', {method:'POST', token:S.cfg.token, body:{description, public:false, files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}, 'avaliacoes.json':{content:'{}'}}}});
+        id = r.data.id; S.seen[id] = []; store.set('seen', S.seen);
+        S.list.unshift({id, titulo:atv.titulo, turma:atv.turma, entregas:[], updated:r.data.updated_at, created:r.data.created_at});
+        S.details[id] = {d:parseActivityGist(r.data), etag:null}; S.meta[id] = metaOf(S.details[id].d); store.set('meta', S.meta);
+        S.justCreated = id;
+        toast('Atividade criada! Agora é só compartilhar o link.', 'success', 4500);
+      }
+      S.listEtag = null;
+      history.replaceState(null, '', '#/atividade/' + id); route();
+    } catch (err) { busy(btn, false); toast(friendlyError(err), 'error', 6000); }
+  };
+}
+
+/* ---------- DETALHE DA ATIVIDADE ---------- */
+async function viewDetail(id) {
+  S.currentDetail = id; S.lastDetailPoll = Date.now(); S.entFilter = '';
+  if (S.unreadBy[id]) { delete S.unreadBy[id]; store.set('unreadBy', S.unreadBy); updateBadges(); }
+  const it = S.list.find(x => x.id === id);
+  setPage({nav:'atividades', title: it?.titulo || 'Atividade', sub: it?.turma || '', back:true});
+  if (S.details[id]) paintDetail(id);
+  else viewHTML(`<div class="card hero"><div class="skel" style="height:22px;width:30%;margin-bottom:12px"></div><div class="skel" style="height:34px;width:70%;margin-bottom:20px"></div><div class="skel" style="height:90px"></div></div><div class="card card-pad"><div class="skel" style="height:220px"></div></div>`);
+  try { await refreshDetail(id, true); paintDetail(id); }
+  catch (e) { if (!S.details[id]) { viewHTML(`<div class="card"><div class="empty"><div class="empty-ic">${ic('alert')}</div><h3>Não foi possível abrir</h3><p>${esc(friendlyError(e))}</p><a class="btn" href="#/atividades">Voltar</a></div></div>`); } }
+}
+function paintDetail(id) {
+  if (S.currentDetail !== id || !S.details[id]) return;
+  const d = S.details[id].d, a = d.atv, st = atvStatus(a);
+  setPage({nav:'atividades', title:a.titulo, sub:a.turma || 'Atividade', back:true});
+  const ativas = d.entregas.filter(e => !e._substituida);
+  const aval = ativas.filter(e => d.aval[e.id]?.status === 'avaliado').length;
+  const atras = ativas.filter(e => e.atrasado).length;
+  const q = norm(S.entFilter);
+  const list = d.entregas.filter(e => !q || norm(`${e.nome} ${e.matricula} ${e.email} ${e.protocolo}`).includes(q));
+  const scroll = $('.content').scrollTop;
+  viewHTML(`
+    <section class="card hero">
+      <div class="hero-top">
+        <div style="min-width:0;flex:1"><div class="eyebrow">${esc(a.turma || 'Atividade')}</div><h2>${esc(a.titulo)}</h2>
+          <div class="hero-meta"><span class="badge ${st.k}">${ic(st.i)}${st.t}</span><span>${ic('calendar')}${a.prazo ? 'Prazo: ' + fmtDTlong(a.prazo) : 'Sem prazo definido'}</span><span>${ic('upload')}${a.modo === 'link' ? 'Entrega por link' : a.modo === 'ambos' ? 'Arquivo ou link' : 'Entrega de arquivo'}</span></div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn" id="dToggle">${ic(a.aberta === false ? 'unlock' : 'lock')} ${a.aberta === false ? 'Reabrir' : 'Encerrar'}</button>
+          <a class="btn" href="#/editar/${id}">${ic('edit')} Editar</a>
+          <button class="btn" id="dZip" ${d.entregas.length ? '' : 'disabled'}>${ic('download')} Baixar tudo</button>
+          <button class="btn" id="dCsv" ${d.entregas.length ? '' : 'disabled'}>${ic('sheet')} Planilha</button>
+          <button class="btn danger-ghost" id="dDel">${ic('trash')} Excluir</button>
+        </div>
+      </div>
+      ${a.descricao ? `<div class="desc">${esc(a.descricao)}</div>` : ''}
+      ${shareBox(id, a)}
+    </section>
+    <div class="stats s4x">
+      <div class="card stat s2"><div class="s-ic">${ic('inbox')}</div><div><b>${ativas.length}</b><span>Alunos que entregaram</span></div></div>
+      <div class="card stat s4"><div class="s-ic">${ic('award')}</div><div><b>${aval}</b><span>Avaliadas</span></div></div>
+      <div class="card stat s1"><div class="s-ic">${ic('edit')}</div><div><b>${ativas.length - aval}</b><span>Pendentes</span></div></div>
+      <div class="card stat s3"><div class="s-ic">${ic('clock')}</div><div><b>${atras}</b><span>Com atraso</span></div></div>
+    </div>
+    <section class="card">
+      <div class="card-head"><h3>${ic('users')} Entregas <span class="count">${d.entregas.length}</span></h3>
+        ${d.entregas.length ? `<div class="search" style="max-width:320px;flex:1 1 220px">${ic('search')}<input class="input" id="entSearch" style="height:38px" placeholder="Buscar aluno, matrícula, protocolo…" value="${esc(S.entFilter)}"></div>` : ''}</div>
+      ${d.entregas.length ? `
+        <div class="sub-head"><div>Aluno</div><div>Enviado</div><div>Conteúdo</div><div>Status</div><div class="c-nota">Nota</div><div></div></div>
+        ${list.map(e => {
+          const av = d.aval[e.id] || {}; const nArq = (e.arquivos || []).length;
+          const cont = [nArq ? `${ic('file')}${nArq} arquivo${nArq > 1 ? 's' : ''}` : '', e.link ? `${ic('link')}link` : ''].filter(Boolean).join(' &nbsp;');
+          return `<div class="sub-row ${S.flash.has(e.id) ? 'flash' : ''} ${e._substituida ? 'old' : ''}" data-eid="${esc(e.id)}">
+            <div class="who">${avatar(e.nome)}<div style="min-width:0"><b>${esc(e.nome)}</b><small>${esc([e.matricula, e.email].filter(Boolean).join(' · ') || e.protocolo)}</small></div></div>
+            <div class="c-date">${fmtDT(e.enviadoEm)}<small>${rel(e.enviadoEm)}</small></div>
+            <div class="c-files">${cont || '—'}</div>
+            <div class="c-status">${e._substituida ? '<span class="badge muted">Substituída</span>' : stBadge(av.status)}${e.atrasado ? '<span class="badge warn">Atrasado</span>' : ''}${e._reenvio && !e._substituida ? '<span class="badge accent">Reenvio</span>' : ''}</div>
+            <div class="c-nota">${av.nota != null && av.nota !== '' ? esc(String(av.nota).replace('.', ',')) : '<span class="muted">—</span>'}</div>
+            <div class="c-go">${ic('chevron')}</div>
+            <div class="m-only m-meta"><span>${ic('clock')}${rel(e.enviadoEm)}</span>${cont ? `<span>${cont}</span>` : ''}${av.nota != null && av.nota !== '' ? `<span>${ic('award')}Nota ${esc(String(av.nota).replace('.', ','))}</span>` : ''}</div>
+          </div>`; }).join('') || `<div class="empty"><p>Nenhum resultado para a busca.</p></div>`}` :
+      `<div class="empty"><div class="empty-ic">${ic('inbox')}</div><h3>Aguardando entregas…</h3><p>Envie o link acima para a turma. Cada trabalho enviado aparece aqui na hora, com aviso sonoro e notificação.</p><span class="live"><i></i><span>Monitorando em tempo real</span></span></div>`}
+    </section>`);
+  $('.content').scrollTop = scroll;
+  setTimeout(() => S.flash.clear(), 2500);
+  bindShare($('#view'), id, a);
+  const es = $('#entSearch');
+  if (es) { es.oninput = () => { S.entFilter = es.value; clearTimeout(es._t); es._t = setTimeout(() => { paintDetail(id); const n = $('#entSearch'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); }; }
+  $$('.sub-row').forEach(r => r.onclick = () => openEntrega(id, r.dataset.eid));
+  $('#dToggle').onclick = async () => {
+    const b = $('#dToggle'); busy(b, true);
+    try { const atv = {...a, aberta: a.aberta === false, atualizadoEm:new Date().toISOString()};
+      await gh('/gists/' + id, {method:'PATCH', token:S.cfg.token, body:{files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}}}});
+      d.atv = atv; S.details[id].etag = null; S.meta[id] = metaOf(d); store.set('meta', S.meta);
+      toast(atv.aberta ? 'Atividade reaberta para entregas' : 'Atividade encerrada — novas entregas bloqueadas', 'success'); paintDetail(id);
+    } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); }
+  };
+  $('#dCsv').onclick = () => exportCSV(d);
+  $('#dZip').onclick = () => downloadAll(d);
+  $('#dDel').onclick = () => deleteActivity(d);
+  if (S.justCreated === id) { S.justCreated = null; setTimeout(() => { const i = $('#shareInput'); if (i) { i.focus(); i.select(); } }, 300); }
+  if (S.openEid) { const e = S.openEid; S.openEid = null; if (d.entregas.some(x => x.id === e)) openEntrega(id, e); }
+}
+
+/* ---------- entrega (professor) ---------- */
+const attCache = {};
+async function fetchAttachmentGist(gid) {
+  if (attCache[gid]) return attCache[gid];
+  const r = await gh('/gists/' + gid, {token:S.cfg.token});
+  attCache[gid] = r.data; return r.data;
+}
+async function getFileBlob(e, i) {
+  const f = e.arquivos[i];
+  const g = await fetchAttachmentGist(e.anexoGist);
+  const gf = g.files[f.arquivo]; if (!gf) throw new ApiError(404, 'Arquivo não encontrado');
+  const content = gf.truncated ? await (await fetch(gf.raw_url, {cache:'no-store'})).text() : gf.content;
+  return b64ToBlob(content, f.tipo);
+}
+function openEntrega(id, eid) {
+  const d = S.details[id]?.d; const e = d?.entregas.find(x => x.id === eid); if (!e) return;
+  const av = d.aval[eid] || {status:'recebido'};
+  const m = modal({title:'Entrega de ' + e.nome.split(' ')[0], size:'lg', body:`
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:6px">${avatar(e.nome, 'lg')}<div style="min-width:0"><b style="font-size:17px;display:block">${esc(e.nome)}</b><span class="muted small">Protocolo <b class="selectable" style="font-family:var(--mono)">${esc(e.protocolo)}</b></span></div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">${e._substituida ? '<span class="badge muted">Versão substituída por reenvio</span>' : ''}${e.atrasado ? '<span class="badge warn">' + ic('clock') + 'Entregue com atraso</span>' : '<span class="badge success">' + ic('check') + 'No prazo</span>'}${e._reenvio ? '<span class="badge accent">Reenvio</span>' : ''}</div>
+    <div class="info-list">
+      ${e.matricula ? `<div><span>Matrícula</span><b class="selectable">${esc(e.matricula)}</b></div>` : ''}
+      ${e.email ? `<div><span>E-mail</span><b><a href="mailto:${esc(e.email)}">${esc(e.email)}</a></b></div>` : ''}
+      <div><span>Enviado em</span><b>${fmtDTlong(e.enviadoEm)}</b></div>
+    </div>
+    ${e.comentario ? `<div class="label" style="margin-top:14px">Comentário do aluno</div><div class="desc" style="margin-top:6px">${esc(e.comentario)}</div>` : ''}
+    ${e.link ? `<div class="label" style="margin:16px 0 8px">Link enviado</div><div class="file-row"><div class="fitem f-ic" style="border:0;padding:0;background:none"><span class="f-ic">${ic('link')}</span></div><div class="t"><b class="selectable">${esc(e.link)}</b></div><a class="btn sm" href="${esc(/^https?:\/\//i.test(e.link) ? e.link : '#')}" target="_blank" rel="noopener noreferrer">${ic('external')} Abrir</a></div>` : ''}
+    ${(e.arquivos || []).length ? `<div class="label" style="margin:16px 0 8px">Arquivos (${e.arquivos.length})</div>${e.arquivos.map((f, i) => `
+      <div class="file-row"><span class="fitem" style="border:0;padding:0;background:none"><span class="f-ic">${esc(extOf(f.nome).slice(0, 4))}</span></span><div class="t"><b>${esc(f.nome)}</b><small>${fmtSize(f.tamanho)}</small></div>
+      <button class="btn sm icon" data-prev="${i}" title="Visualizar">${ic('eye')}</button><button class="btn sm" data-dl="${i}">${ic('download')}<span class="hide-m">Baixar</span></button></div>`).join('')}` : ''}
+    <div class="divider"></div>
+    <div class="label" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">${ic('award')} Avaliação</div>
+    <div class="field"><span class="label">Status</span><div class="seg" id="gSt">${Object.entries(STATUS).map(([k, s]) => `<button type="button" data-k="${k}" class="${(av.status || 'recebido') === k ? 'on' : ''}">${s.t}</button>`).join('')}</div></div>
+    <div class="row"><div class="field"><label for="gNota">Nota</label><input class="input" id="gNota" inputmode="decimal" placeholder="Ex.: 8,5" value="${esc(av.nota != null ? String(av.nota).replace('.', ',') : '')}"></div><div></div></div>
+    <div class="field" style="margin-bottom:0"><label for="gFb">Devolutiva para o aluno</label><textarea class="input" id="gFb" rows="4" placeholder="Comentários que o aluno verá ao consultar o protocolo…">${esc(av.feedback || '')}</textarea></div>`,
+    footer:`<button class="btn danger-ghost" id="eDel">${ic('trash')}<span>Excluir</span></button><span class="spacer"></span><button class="btn ghost hide-m" data-close>Fechar</button><button class="btn primary" id="gSave">${ic('check')} Salvar avaliação</button>`,
+    onMount(m) {
+      let st = av.status || 'recebido';
+      $$('#gSt button', m.el).forEach(b => b.onclick = () => { st = b.dataset.k; $$('#gSt button', m.el).forEach(x => x.classList.toggle('on', x === b)); });
+      $$('[data-dl]', m.el).forEach(b => b.onclick = async () => { const i = +b.dataset.dl; busy(b, true); try { downloadBlob(await getFileBlob(e, i), e.arquivos[i].nome); } catch (er) { toast(friendlyError(er), 'error'); } busy(b, false); });
+      $$('[data-prev]', m.el).forEach(b => b.onclick = async () => { const i = +b.dataset.prev; busy(b, true); try { previewFile(await getFileBlob(e, i), e.arquivos[i]); } catch (er) { toast(friendlyError(er), 'error'); } busy(b, false); });
+      $('#gNota', m.el).oninput = () => { if (st === 'recebido') { st = 'avaliado'; $$('#gSt button', m.el).forEach(x => x.classList.toggle('on', x.dataset.k === 'avaliado')); } };
+      $('#gSave', m.el).onclick = async () => {
+        const raw = $('#gNota', m.el).value.trim().replace(',', '.');
+        if (raw && isNaN(+raw)) { $('#gNota', m.el).classList.add('err'); return toast('Informe uma nota numérica', 'error'); }
+        const b = $('#gSave', m.el); busy(b, true, 'Salvando…');
+        try {
+          const {d: fresh} = await loadDetail(id, {force:true});
+          const avs = {...fresh.aval, [eid]: {status:st, nota: raw === '' ? null : +raw, feedback:$('#gFb', m.el).value.trim(), em:new Date().toISOString()}};
+          await gh('/gists/' + id, {method:'PATCH', token:S.cfg.token, body:{files:{'avaliacoes.json':{content:JSON.stringify(avs, null, 2)}}}});
+          fresh.aval = avs; S.details[id].etag = null;
+          toast('Avaliação salva — o aluno já pode consultar', 'success'); m.close(); paintDetail(id);
+        } catch (er) { busy(b, false); toast(friendlyError(er), 'error'); }
+      };
+      $('#eDel', m.el).onclick = async () => {
+        if (!await confirmDlg(`Excluir a entrega de ${e.nome}? Os arquivos serão apagados permanentemente.`, {ok:'Excluir entrega', danger:true})) return;
+        try {
+          await gh('/gists/' + id, {method:'PATCH', token:S.cfg.token, body:{files:{[e._file]: null}}});
+          if (e.anexoGist) await gh('/gists/' + e.anexoGist, {method:'DELETE', token:S.cfg.token}).catch(() => {});
+          S.details[id].etag = null; m.close(); toast('Entrega excluída', 'success'); await refreshDetail(id, true); paintDetail(id);
+        } catch (er) { toast(friendlyError(er), 'error'); }
+      };
+    }});
+  return m;
+}
+function previewFile(blob, f) {
+  const url = URL.createObjectURL(blob), ext = extOf(f.nome);
+  const isImg = /^image\//.test(f.tipo) || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext);
+  const isPdf = f.tipo === 'application/pdf' || ext === 'pdf';
+  const isTxt = /^text\//.test(f.tipo) || ['txt', 'md', 'csv', 'json', 'py', 'js', 'ts', 'java', 'c', 'cpp', 'h', 'cs', 'html', 'css', 'sql', 'r', 'php', 'go', 'kt', 'swift'].includes(ext);
+  modal({title:f.nome, size:'xl', body:`<div class="preview-box" id="pv">${isImg ? `<img src="${url}" alt="">` : isPdf ? `<iframe src="${url}" title="PDF"></iframe>` : isTxt ? '<pre class="selectable"></pre>' : `<div class="empty"><div class="empty-ic">${ic('file')}</div><h3>Pré-visualização indisponível</h3><p>Este formato (.${esc(ext)}) precisa ser aberto no programa adequado.</p></div>`}</div>`,
+    footer:`<button class="btn ghost" data-close>Fechar</button><button class="btn primary" id="pvDl">${ic('download')} Baixar arquivo</button>`,
+    onMount(m) { if (isTxt) blob.text().then(t => { m.$('pre').textContent = t; }); m.$('#pvDl').onclick = () => downloadBlob(blob, f.nome); m.$('.modal-body').style.display = 'flex'; m.$('.modal-body').style.flexDirection = 'column'; m.$('#pv').style.flex = '1'; },
+    onClose() { setTimeout(() => URL.revokeObjectURL(url), 1000); }});
+}
+function csvOf(d) {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [['Protocolo', 'Nome', 'Matrícula', 'E-mail', 'Enviado em', 'Atrasado', 'Versão', 'Link', 'Arquivos', 'Status', 'Nota', 'Devolutiva', 'Comentário do aluno']];
+  [...d.entregas].reverse().forEach(e => { const av = d.aval[e.id] || {};
+    rows.push([e.protocolo, e.nome, e.matricula, e.email, new Date(e.enviadoEm).toLocaleString('pt-BR'), e.atrasado ? 'Sim' : 'Não', e._substituida ? 'Substituída' : e._reenvio ? 'Reenvio (atual)' : 'Atual', e.link, (e.arquivos || []).map(f => f.nome).join(' | '), STATUS[av.status || 'recebido'].t, av.nota != null ? String(av.nota).replace('.', ',') : '', av.feedback, e.comentario]); });
+  return '﻿' + rows.map(r => r.map(q).join(';')).join('\r\n');
+}
+function exportCSV(d) { downloadBlob(new Blob([csvOf(d)], {type:'text/csv;charset=utf-8'}), `${safeName(d.atv.titulo)} - entregas.csv`); toast('Planilha exportada (abre no Excel / Google Planilhas)', 'success'); }
+function loadScript(src) { return new Promise((res, rej) => { if (window.JSZip) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Não foi possível carregar o compactador. Verifique a conexão.')); document.head.appendChild(s); }); }
+async function downloadAll(d) {
+  const ativas = d.entregas.filter(e => !e._substituida);
+  const m = modal({title:'Baixar todas as entregas', size:'sm', body:`<p class="muted small" style="margin-bottom:14px">Gerando um arquivo .zip com uma pasta por aluno (somente a versão mais recente de cada um) e a planilha de entregas.</p><div class="progress"><i id="zp"></i></div><p class="small" id="zt" style="margin-top:10px">Preparando…</p>`});
+  try {
+    await loadScript(JSZIP_URL);
+    const zip = new JSZip(); zip.file('entregas.csv', csvOf(d));
+    let n = 0;
+    for (const e of ativas) {
+      n++; $('#zt', m.el) && ($('#zt', m.el).textContent = `${n} de ${ativas.length}: ${e.nome}`); $('#zp', m.el) && ($('#zp', m.el).style.width = (n / ativas.length * 100) + '%');
+      const folder = zip.folder(safeName(`${e.nome}${e.matricula ? ' - ' + e.matricula : ''}`));
+      if (e.link) folder.file('link.url', `[InternetShortcut]\r\nURL=${e.link}\r\n`);
+      if (e.comentario) folder.file('comentario.txt', e.comentario);
+      for (let i = 0; i < (e.arquivos || []).length; i++) { try { folder.file(safeName(e.arquivos[i].nome), await getFileBlob(e, i)); } catch {} }
+    }
+    $('#zt', m.el) && ($('#zt', m.el).textContent = 'Compactando…');
+    const blob = await zip.generateAsync({type:'blob'});
+    downloadBlob(blob, `${safeName(d.atv.titulo)} - entregas.zip`); m.close(); toast('Download iniciado', 'success');
+  } catch (e) { m.close(); toast(e.message || friendlyError(e), 'error'); }
+}
+async function deleteActivity(d) {
+  if (!await confirmDlg(`Excluir “${d.atv.titulo}” e todas as ${d.entregas.length} entregas? O link deixará de funcionar. Esta ação não pode ser desfeita.`, {ok:'Excluir definitivamente', danger:true, title:'Excluir atividade'})) return;
+  const m = modal({title:'Excluindo…', size:'sm', body:`<div class="progress"><i id="dp"></i></div><p class="small muted" style="margin-top:10px">Removendo anexos e atividade do Gist.</p>`});
+  try {
+    const gids = d.entregas.map(e => e.anexoGist).filter(Boolean); let n = 0;
+    for (const g of gids) { await gh('/gists/' + g, {method:'DELETE', token:S.cfg.token}).catch(() => {}); n++; $('#dp', m.el) && ($('#dp', m.el).style.width = (n / (gids.length + 1) * 100) + '%'); }
+    await gh('/gists/' + d.id, {method:'DELETE', token:S.cfg.token});
+    delete S.details[d.id]; delete S.meta[d.id]; delete S.seen[d.id]; delete S.unreadBy[d.id];
+    S.list = S.list.filter(x => x.id !== d.id); store.set('list', S.list); store.set('meta', S.meta); store.set('seen', S.seen); store.set('unreadBy', S.unreadBy); S.listEtag = null;
+    m.close(); toast('Atividade excluída', 'success'); go('atividades');
+  } catch (e) { m.close(); toast(friendlyError(e), 'error'); }
+}
+
+/* ---------- CONFIGURAÇÕES ---------- */
+function viewConfig() {
+  setPage({nav:'config', title:'Configurações', sub:'Conta, endereço do app, notificações e aparência'});
+  const c = S.cfg, theme = store.get('theme', 'auto');
+  const notif = 'Notification' in window ? Notification.permission : 'unsupported';
+  viewHTML(`
+    <section class="card form-card"><h3>${ic('users')} Conta</h3><p>Conectado ao GitHub. Atividades e entregas ficam em Gists secretos desta conta.</p>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><img src="${esc(c.avatar)}" alt="" style="width:52px;height:52px;border-radius:16px"><div style="flex:1;min-width:180px"><b style="display:block">${esc(c.name)}</b><span class="muted small">@${esc(c.login)} · <a href="https://gist.github.com/${esc(c.login)}" target="_blank" rel="noopener">ver meus gists</a></span></div>
+      <button class="btn" id="cName">${ic('edit')} Alterar nome</button><button class="btn danger-ghost" id="cOut">${ic('logout')} Desconectar</button></div>
+    </section>
+    <section class="card form-card"><h3>${ic('globe')} Endereço público do app</h3><p>É o endereço usado nos links enviados aos alunos. Publique o próprio app num Gist e ele passa a rodar via <b>gist.githack.com</b>.</p>
+      <div class="field"><label for="cUrl">URL do aplicativo</label><div class="input-group"><input class="input selectable" id="cUrl" placeholder="https://gist.githack.com/usuario/…/raw/index.html" value="${esc(c.appUrl || (appBase() || ''))}"><button class="btn" id="cUrlSave">Salvar</button></div>
+      <span class="hint">${c.appGist ? `Publicado no gist <a href="https://gist.github.com/${esc(c.login)}/${esc(c.appGist)}" target="_blank" rel="noopener">${esc(c.appGist.slice(0, 8))}…</a>. ` : ''}Também funciona com GitHub Pages ou qualquer hospedagem estática.</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="cPub">${ic('upload')} ${c.appGist ? 'Atualizar app publicado' : 'Publicar app no meu Gist'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a><button class="btn" id="cCopyUrl">${ic('copy')} Copiar endereço</button>` : ''}</div>
+    </section>
+    <section class="card form-card"><h3>${ic('bell')} Tempo real e alertas</h3><p>O sistema verifica novas entregas automaticamente a cada poucos segundos.</p>
+      <label class="toggle"><div><b>Notificações do sistema</b><small>${notif === 'granted' ? 'Ativadas neste dispositivo.' : notif === 'denied' ? 'Bloqueadas no navegador — libere nas permissões do site.' : notif === 'unsupported' ? 'Não suportado neste navegador.' : 'Receba alertas mesmo com a janela em segundo plano.'}</small></div>${notif === 'default' ? `<button class="btn sm primary" id="cNotif" type="button">Ativar</button>` : `<span class="badge ${notif === 'granted' ? 'success' : 'muted'}">${notif === 'granted' ? 'Ativo' : 'Indisponível'}</span>`}</label>
+      <label class="toggle"><div><b>Som ao receber entrega</b><small>Toque discreto a cada novo trabalho.</small></div><span class="switch"><input type="checkbox" id="cSom" ${store.get('som', true) ? 'checked' : ''}><span></span></span></label>
+    </section>
+    <section class="card form-card"><h3>${ic('sun')} Aparência e aplicativo</h3><p>Tema da interface e instalação como app.</p>
+      <div class="field"><span class="label">Tema</span><div class="seg" id="cTheme">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Escuro']].map(([k, t]) => `<button data-k="${k}" class="${theme === k ? 'on' : ''}">${t}</button>`).join('')}</div></div>
+      <button class="btn" onclick="installApp()" ${isStandalone() ? 'disabled' : ''}>${ic('phone')} ${isStandalone() ? 'Já está rodando como app' : 'Instalar como aplicativo'}</button>
+    </section>
+    <section class="card form-card"><h3>${ic('shield')} Segurança</h3>
+      <div class="callout warn">${ic('alert')}<div>Os links de entrega contêm seu token codificado, pois é ele que grava as entregas no Gist. Recomendações: use uma <b>conta GitHub exclusiva</b> para as aulas, token só com permissão <code>gist</code>, e compartilhe os links apenas com a turma. Se um link vazar, <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">revogue o token</a> e conecte um novo — os links antigos param de funcionar.</div></div>
+    </section>`, 'wrap narrow');
+  $('#cName').onclick = () => modal({title:'Seu nome', size:'sm', body:`<div class="field" style="margin:0"><label for="nn">Nome exibido aos alunos</label><input class="input" id="nn" value="${esc(c.name)}"></div>`, footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="nnOk">Salvar</button>`,
+    onMount(m) { m.$('#nnOk').onclick = () => { const v = m.$('#nn').value.trim(); if (!v) return; S.cfg.name = v; saveCfg(); m.close(); $('#shell')?.remove(); route(); toast('Nome atualizado. Novas atividades usarão este nome.', 'success'); }; }});
+  $('#cOut').onclick = async () => { if (!await confirmDlg('Remover o token deste dispositivo? Suas atividades continuam salvas no GitHub e os links seguem funcionando.', {ok:'Desconectar', danger:true})) return;
+    store.del('cfg'); store.del('list'); store.del('meta'); store.del('seen'); store.del('unreadBy'); S.cfg = null; S.list = []; S.meta = {}; S.seen = {}; S.unreadBy = {}; S.details = {}; updateBadges(); go(''); route(); };
+  $('#cUrlSave').onclick = () => { const v = $('#cUrl').value.trim(); if (v && !/^https?:\/\//.test(v)) return toast('Informe uma URL começando com https://', 'error'); S.cfg.appUrl = v || undefined; saveCfg(); toast('Endereço salvo', 'success'); viewConfig(); };
+  $('#cPub').onclick = async () => { const b = $('#cPub'); busy(b, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Pode levar até 1 min para o endereço atualizar.', 'success', 5000); viewConfig(); } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); } };
+  const cu = $('#cCopyUrl'); if (cu) cu.onclick = () => copyText(c.appUrl, 'Endereço copiado');
+  const cn = $('#cNotif'); if (cn) cn.onclick = async () => { const p = await Notification.requestPermission(); if (p === 'granted') { sysNotify('Notificações ativadas', 'Você será avisado(a) a cada nova entrega.'); } viewConfig(); };
+  $('#cSom').onchange = e => { store.set('som', e.target.checked); if (e.target.checked) chime(); };
+  $$('#cTheme button').forEach(b => b.onclick = () => { store.set('theme', b.dataset.k); applyTheme(); $$('#cTheme button').forEach(x => x.classList.toggle('on', x === b)); });
+}
+
+/* =========================================================
+   ALUNO
+   ========================================================= */
+const Stu = {files:[], tab:'enviar', timer:null};
+function stuShell(inner) {
+  $('#app').innerHTML = `<div class="stu"><header class="stu-bar">${LOGO}<div style="flex:1;min-width:0"><b>${APP}</b><small>Envio de trabalho</small></div><button class="btn icon ghost install-btn" style="color:#fff" ${deferredPrompt ? '' : 'hidden'} onclick="installApp()" title="Instalar app">${ic('phone')}</button></header><main class="stu-main" id="stuMain">${inner}</main></div>`;
+}
+function stuError(t, p) { stuShell(`<div class="card"><div class="empty"><div class="empty-ic" style="background:var(--danger-50);color:var(--danger)">${ic('alert')}</div><h3>${esc(t)}</h3><p>${esc(p)}</p><button class="btn" onclick="location.reload()">${ic('refresh')} Tentar novamente</button></div></div>`); }
+async function startStudent(payload) {
+  S.mode = 'stu'; S.currentDetail = null; clearInterval(Stu.timer);
+  let info;
+  try { info = decodeLink(payload); if (!info.g || !info.t) throw 0; } catch { return stuError('Link inválido', 'Verifique se o link foi copiado por completo ou peça um novo ao professor.'); }
+  Stu.info = info;
+  if (!Stu.d || Stu.d.id !== info.g) {
+    stuShell(`<div class="card stu-hero"><div class="skel" style="height:16px;width:30%;margin-bottom:12px"></div><div class="skel" style="height:30px;width:80%;margin-bottom:16px"></div><div class="skel" style="height:70px"></div></div><div class="card card-pad"><div class="skel" style="height:260px"></div></div>`);
+    try { const r = await gh('/gists/' + info.g, {token:info.t}); Stu.d = parseActivityGist(r.data); }
+    catch (e) { return stuError(e.status === 404 ? 'Atividade não encontrada' : e.status === 401 ? 'Link desativado' : 'Não foi possível abrir a atividade', e.status === 404 ? 'Ela pode ter sido removida pelo professor.' : e.status === 401 ? 'O professor renovou o acesso. Peça o link atualizado.' : friendlyError(e)); }
+    Stu.files = []; Stu.tab = (store.get('stu:' + info.g, []).length && !canSubmit(Stu.d.atv)) ? 'minhas' : 'enviar'; Stu.done = null;
+  }
+  document.title = Stu.d.atv.titulo + ' · ' + APP;
+  paintStudent();
+}
+function paintStudent() {
+  const a = Stu.d.atv, open = canSubmit(a), mine = store.get('stu:' + Stu.d.id, []);
+  let dl = '';
+  if (a.prazo) {
+    const late = new Date(a.prazo) < Date.now(), soon = !late && new Date(a.prazo) - Date.now() < 86400000 * 2;
+    dl = `<div class="deadline ${late ? 'late' : soon ? 'soon' : ''}"><span class="d-ic">${ic(late ? 'alert' : 'calendar')}</span><div><b>${late ? 'Prazo encerrado ' + until(a.prazo) : 'Entrega ' + until(a.prazo)}</b><small>${fmtDTlong(a.prazo)}${late && a.aceitarAtrasados && a.aberta !== false ? ' · entregas atrasadas ainda são aceitas' : ''}</small></div></div>`;
+  }
+  const fmts = allowedExts(a);
+  stuShell(`
+    <section class="card stu-hero">
+      <div class="eyebrow">${esc(a.turma || 'Atividade')}</div>
+      <h1>${esc(a.titulo)}</h1>
+      <div class="hero-meta"><span>${ic('cap')}${esc(a.professor || 'Professor(a)')}</span>${a.modo !== 'link' ? `<span>${ic('file')}${fmts ? (a.formatos.map(k => FORMATOS[k].label).join(', ')) : 'Qualquer formato'} · até ${a.maxMB} MB</span>` : `<span>${ic('link')}Entrega por link</span>`}</div>
+      ${a.descricao ? `<div class="desc">${esc(a.descricao)}</div>` : ''}
+      ${dl}
+      ${!open ? `<div class="callout danger" style="margin-top:14px">${ic('lock')}<div><b>Esta atividade não está recebendo entregas.</b><br>${a.aberta === false ? 'O professor encerrou o recebimento.' : 'O prazo terminou.'}</div></div>` : ''}
+    </section>
+    <div class="tabs"><button data-t="enviar" class="${Stu.tab === 'enviar' ? 'on' : ''}">${ic('upload')} Enviar trabalho</button><button data-t="minhas" class="${Stu.tab === 'minhas' ? 'on' : ''}">${ic('inbox')} Minhas entregas${mine.length ? ` (${mine.length})` : ''}</button></div>
+    <div id="stuTab"></div>`);
+  $$('.tabs button').forEach(b => b.onclick = () => { Stu.tab = b.dataset.t; paintStudent(); });
+  clearInterval(Stu.timer);
+  if (Stu.tab === 'enviar') Stu.done ? paintDone() : paintStuForm(open);
+  else { paintMine(); refreshStu().then(ch => ch && Stu.tab === 'minhas' && paintMine()); Stu.timer = setInterval(() => refreshStu().then(ch => ch && Stu.tab === 'minhas' && paintMine()), 20000); }
+}
+async function refreshStu() {
+  try { const r = await gh('/gists/' + Stu.info.g, {token:Stu.info.t}); const before = JSON.stringify([Stu.d.aval, Stu.d.entregas.length, Stu.d.atv]); Stu.d = parseActivityGist(r.data); return before !== JSON.stringify([Stu.d.aval, Stu.d.entregas.length, Stu.d.atv]); } catch { return false; }
+}
+function paintStuForm(open) {
+  const a = Stu.d.atv, p = store.get('stu:perfil', {}), fmts = allowedExts(a);
+  const box = $('#stuTab');
+  if (!open) { box.innerHTML = `<div class="card"><div class="empty"><div class="empty-ic">${ic('lock')}</div><h3>Envio indisponível</h3><p>Se você já enviou, consulte o status em “Minhas entregas”.</p></div></div>`; return; }
+  const needFile = a.modo !== 'link', needLink = a.modo !== 'arquivo';
+  box.innerHTML = `<form class="card card-pad" id="stuForm" novalidate autocomplete="on">
+    <div class="field"><label for="tNome">Nome completo <span class="req">*</span></label><input class="input" id="tNome" name="name" autocomplete="name" required maxlength="100" placeholder="Seu nome completo" value="${esc(p.nome || '')}"></div>
+    <div class="row">
+      <div class="field"><label for="tMat">Matrícula / RA ${a.exigirMatricula ? '<span class="req">*</span>' : '<span class="muted">(opcional)</span>'}</label><input class="input" id="tMat" maxlength="40" inputmode="text" placeholder="Ex.: 2024001234" value="${esc(p.matricula || '')}"></div>
+      <div class="field"><label for="tEmail">E-mail ${a.exigirEmail ? '<span class="req">*</span>' : '<span class="muted">(opcional)</span>'}</label><input class="input" id="tEmail" type="email" autocomplete="email" maxlength="120" placeholder="voce@email.com" value="${esc(p.email || '')}"></div>
+    </div>
+    ${needFile ? `<div class="field"><span class="label">Arquivos do trabalho ${a.modo === 'arquivo' ? '<span class="req">*</span>' : ''}</span>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar arquivos"><div class="d-ic">${ic('upload')}</div><b>Toque para escolher ou arraste aqui</b><small>${fmts ? fmts.map(x => '.' + x).slice(0, 10).join(' ') + (fmts.length > 10 ? ' …' : '') : 'Qualquer formato'} · até ${a.maxMB} MB cada · máx. ${a.maxArquivos} arquivo${a.maxArquivos > 1 ? 's' : ''}</small></div>
+      <input type="file" id="fileIn" hidden ${a.maxArquivos > 1 ? 'multiple' : ''} ${fmts ? `accept="${fmts.map(x => '.' + x).join(',')}"` : ''}>
+      <div class="flist" id="flist"></div></div>` : ''}
+    ${needLink ? `<div class="field"><label for="tLink">Link do trabalho ${a.modo === 'link' ? '<span class="req">*</span>' : '<span class="muted">(opcional)</span>'}</label><input class="input" id="tLink" type="url" inputmode="url" placeholder="https://drive.google.com/… ou https://github.com/…"><span class="hint">Confira se o link está com acesso liberado para o professor.</span></div>` : ''}
+    <div class="field"><label for="tCom">Comentário para o professor <span class="muted">(opcional)</span></label><textarea class="input" id="tCom" rows="3" maxlength="1500" placeholder="Alguma observação sobre o trabalho?"></textarea></div>
+    <label class="check" style="margin-bottom:18px"><input type="checkbox" id="tDecl"><span>Declaro que este trabalho é de minha autoria e que as fontes utilizadas foram devidamente citadas.</span></label>
+    ${!a.permitirReenvio ? `<div class="callout info small" style="margin-bottom:16px">${ic('alert')}<div>Esta atividade aceita <b>apenas um envio</b> por aluno. Confira tudo antes de enviar.</div></div>` : ''}
+    <button class="btn primary lg block" type="submit" id="tSend">${ic('send')} Enviar trabalho</button>
+  </form>`;
+  if (needFile) {
+    const drop = $('#drop'), fin = $('#fileIn');
+    const add = list => {
+      for (const f of list) {
+        if (Stu.files.length >= a.maxArquivos) { toast(`Máximo de ${a.maxArquivos} arquivo(s)`, 'error'); break; }
+        if (Stu.files.some(x => x.name === f.name && x.size === f.size)) continue;
+        Stu.files.push(f);
+      }
+      paintFiles();
+    };
+    drop.onclick = () => fin.click();
+    drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fin.click(); } };
+    fin.onchange = () => { add(fin.files); fin.value = ''; };
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', e => add(e.dataTransfer.files));
+    paintFiles();
+  }
+  $('#stuForm').onsubmit = e => { e.preventDefault(); stuSubmit(); };
+}
+function fileProblem(f, a) {
+  const exts = allowedExts(a);
+  if (!f.size) return 'Arquivo vazio';
+  if (exts && !exts.includes(extOf(f.name))) return 'Formato não aceito';
+  if (f.size > a.maxMB * 1048576) return `Maior que ${a.maxMB} MB`;
+  return null;
+}
+function paintFiles() {
+  const a = Stu.d.atv, el = $('#flist'); if (!el) return;
+  el.innerHTML = Stu.files.map((f, i) => { const p = fileProblem(f, a);
+    return `<div class="fitem ${p ? 'bad' : ''}"><span class="f-ic">${esc(extOf(f.name).slice(0, 4) || ic('file'))}</span><div class="t"><b>${esc(f.name)}</b><small>${fmtSize(f.size)}${p ? ` · <span style="color:var(--danger);font-weight:700">${p}</span>` : ''}</small></div><button type="button" class="btn icon sm ghost" data-rm="${i}" aria-label="Remover">${ic('x')}</button></div>`; }).join('');
+  $$('[data-rm]', el).forEach(b => b.onclick = () => { Stu.files.splice(+b.dataset.rm, 1); paintFiles(); });
+  const drop = $('#drop'); if (drop) drop.hidden = Stu.files.length >= a.maxArquivos;
+}
+async function stuSubmit() {
+  const a = Stu.d.atv;
+  const v = {nome:$('#tNome').value.trim().replace(/\s+/g, ' '), matricula:$('#tMat').value.trim(), email:$('#tEmail').value.trim(), link:$('#tLink')?.value.trim() || '', comentario:$('#tCom').value.trim()};
+  $$('.input.err').forEach(x => x.classList.remove('err'));
+  const fail = (sel, msg) => { const el = $(sel); el && el.classList.add('err'); el && el.focus(); toast(msg, 'error'); };
+  if (v.nome.length < 3) return fail('#tNome', 'Informe seu nome completo');
+  if (a.exigirMatricula && !v.matricula) return fail('#tMat', 'Informe sua matrícula');
+  if ((a.exigirEmail || v.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) return fail('#tEmail', 'Informe um e-mail válido');
+  if (v.link && !/^https?:\/\/\S+\.\S+/i.test(v.link)) return fail('#tLink', 'O link deve começar com https://');
+  if (a.modo === 'link' && !v.link) return fail('#tLink', 'Cole o link do seu trabalho');
+  if (a.modo === 'arquivo' && !Stu.files.length) return toast('Anexe pelo menos um arquivo', 'error');
+  if (a.modo === 'ambos' && !Stu.files.length && !v.link) return toast('Anexe um arquivo ou informe um link', 'error');
+  const bad = Stu.files.find(f => fileProblem(f, a)); if (bad) return toast(`“${bad.name}”: ${fileProblem(bad, a)}`, 'error');
+  if (!$('#tDecl').checked) return toast('Confirme a declaração de autoria', 'error');
+  store.set('stu:perfil', {nome:v.nome, matricula:v.matricula, email:v.email});
+
+  const steps = [Stu.files.length ? 'Preparando arquivos' : null, Stu.files.length ? 'Enviando arquivos' : null, 'Registrando entrega', 'Confirmando recebimento'].filter(Boolean);
+  let cur = 0, closedOk = false;
+  const m = modal({title:'Enviando seu trabalho', size:'sm', body:`<div id="psteps">${steps.map((s, i) => `<div class="pstep" data-i="${i}"><span class="dot"></span><span>${s}</span></div>`).join('')}</div><div class="progress" style="margin-top:14px"><i id="pbar"></i></div><p class="small muted" id="ptxt" style="margin-top:8px;text-align:center">Não feche esta página.</p>`});
+  m.wrap.onclick = null; m.$('[data-close]').hidden = true;
+  const setStep = i => { cur = i; $$('.pstep', m.el).forEach((el, k) => { el.className = 'pstep' + (k < i ? ' ok' : k === i ? ' on' : ''); if (k < i) el.querySelector('.dot').innerHTML = ic('check'); }); $('#pbar', m.el).style.width = Math.round(i / steps.length * 100) + '%'; };
+  const token = Stu.info.t; let anexoGist = null;
+  try {
+    setStep(0);
+    // checagem de envio único e de prazo atualizada
+    await refreshStu();
+    if (!canSubmit(Stu.d.atv)) throw new ApiError(0, 'A atividade foi encerrada enquanto você preenchia.');
+    if (!Stu.d.atv.permitirReenvio) {
+      const key = norm(v.matricula) || norm(v.nome);
+      if (Stu.d.entregas.some(e => (norm(e.matricula) || norm(e.nome)) === key)) throw new ApiError(0, 'Já existe uma entrega com essa matrícula/nome e esta atividade não aceita reenvio.');
+    }
+    const id = uid(), protocolo = protoCode(), arquivos = [];
+    if (Stu.files.length) {
+      const files = {};
+      for (let i = 0; i < Stu.files.length; i++) {
+        const f = Stu.files[i], key = `anexo-${i + 1}.b64`;
+        files[key] = {content: await readB64(f)};
+        arquivos.push({nome:f.name, tipo:f.type || '', tamanho:f.size, arquivo:key});
+      }
+      files['meta.json'] = {content: JSON.stringify({atividade:Stu.d.id, entrega:id, protocolo, nome:v.nome, arquivos}, null, 2)};
+      setStep(1);
+      const g = await ghUpload('/gists', 'POST', {description:`${TAG_ANX} ${a.titulo} · ${v.nome}`, public:false, files}, token, p => {
+        const base = 1 / steps.length; $('#pbar', m.el).style.width = Math.round((base + p * base) * 100) + '%'; $('#ptxt', m.el).textContent = `Enviando… ${Math.round(p * 100)}%`; });
+      anexoGist = g.id;
+    }
+    setStep(steps.length - 2); $('#ptxt', m.el).textContent = 'Quase lá…';
+    const entrega = {v:1, id, protocolo, nome:v.nome, matricula:v.matricula, email:v.email, link:v.link, comentario:v.comentario, arquivos, anexoGist,
+      enviadoEm:new Date().toISOString(), atrasado: !!(a.prazo && new Date(a.prazo) < Date.now())};
+    await gh('/gists/' + Stu.d.id, {method:'PATCH', token, body:{files:{[`entrega_${id}.json`]:{content:JSON.stringify(entrega, null, 2)}}}});
+    setStep(steps.length - 1);
+    await refreshStu();
+    setStep(steps.length); $('#ptxt', m.el).textContent = 'Concluído!';
+    const mine = store.get('stu:' + Stu.d.id, []); mine.unshift({id, protocolo, enviadoEm:entrega.enviadoEm}); store.set('stu:' + Stu.d.id, mine);
+    Stu.done = entrega; Stu.files = []; closedOk = true;
+    await sleep(500); m.close(); Stu.tab = 'enviar'; paintStudent(); window.scrollTo({top:0, behavior:'smooth'});
+  } catch (e) {
+    if (anexoGist) gh('/gists/' + anexoGist, {method:'DELETE', token}).catch(() => {});
+    $$('.pstep', m.el).forEach((el, k) => { if (k === cur) { el.className = 'pstep'; el.style.color = 'var(--danger)'; el.querySelector('.dot').innerHTML = ic('x'); el.querySelector('.dot').style.borderColor = 'var(--danger)'; } });
+    $('#ptxt', m.el).innerHTML = `<span style="color:var(--danger);font-weight:600">${esc(e.status === 0 ? e.message : friendlyError(e))}</span>`;
+    m.$('[data-close]').hidden = false;
+    const f = document.createElement('div'); f.className = 'modal-foot'; f.innerHTML = `<button class="btn ghost" data-close>Fechar</button>${e.status !== 0 ? '<button class="btn primary" id="retry">Tentar novamente</button>' : ''}`; m.el.appendChild(f);
+    const r = f.querySelector('#retry'); if (r) r.onclick = () => { m.close(); setTimeout(stuSubmit, 250); };
+  }
+}
+function paintDone() {
+  const e = Stu.done, a = Stu.d.atv;
+  $('#stuTab').innerHTML = `<div class="card done">
+    <div class="ok">${ic('check')}</div>
+    <h2>Trabalho enviado!</h2>
+    <p class="muted">${esc(a.professor || 'O professor')} já recebeu sua entrega${e.atrasado ? ' (registrada como atrasada)' : ''}.</p>
+    <div class="proto selectable">${esc(e.protocolo)}<button class="btn icon sm ghost" id="cpP" title="Copiar">${ic('copy')}</button></div>
+    <p class="small muted">Guarde este protocolo · ${fmtDTlong(e.enviadoEm)}</p>
+    <div class="info-list" style="text-align:left;max-width:420px;margin:20px auto 0">
+      <div><span>Aluno</span><b>${esc(e.nome)}</b></div>
+      ${e.matricula ? `<div><span>Matrícula</span><b>${esc(e.matricula)}</b></div>` : ''}
+      ${(e.arquivos || []).map(f => `<div><span>Arquivo</span><b>${esc(f.nome)} · ${fmtSize(f.tamanho)}</b></div>`).join('')}
+      ${e.link ? `<div><span>Link</span><b style="word-break:break-all">${esc(e.link)}</b></div>` : ''}
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap">
+      <button class="btn" id="goMine">${ic('inbox')} Acompanhar avaliação</button>
+      ${a.permitirReenvio && canSubmit(a) ? `<button class="btn primary" id="again">${ic('upload')} Enviar nova versão</button>` : ''}
+    </div></div>`;
+  $('#cpP').onclick = () => copyText(e.protocolo, 'Protocolo copiado');
+  $('#goMine').onclick = () => { Stu.tab = 'minhas'; paintStudent(); };
+  const ag = $('#again'); if (ag) ag.onclick = () => { Stu.done = null; paintStudent(); };
+}
+function paintMine() {
+  const mine = store.get('stu:' + Stu.d.id, []);
+  const box = $('#stuTab');
+  const card = e => { const av = Stu.d.aval[e.id] || {};
+    return `<div class="my-sub"><div class="top"><div><b style="font-family:var(--mono);letter-spacing:.05em">${esc(e.protocolo)}</b><div class="small muted">${esc(e.nome)} · ${fmtDT(e.enviadoEm)}</div></div>${e._substituida ? '<span class="badge muted">Substituída</span>' : stBadge(av.status)}</div>
+      ${(e.arquivos || []).length || e.link ? `<div class="small muted" style="margin-top:8px">${[(e.arquivos || []).map(f => esc(f.nome)).join(', '), e.link ? 'Link enviado' : ''].filter(Boolean).join(' · ')}</div>` : ''}
+      ${av.nota != null && av.nota !== '' ? `<div style="margin-top:12px;display:flex;align-items:baseline;gap:8px"><span class="small muted">Nota</span><span class="nota-big">${esc(String(av.nota).replace('.', ','))}</span></div>` : ''}
+      ${av.feedback ? `<div class="fb">${esc(av.feedback)}</div>` : ''}</div>`; };
+  const found = mine.map(m => Stu.d.entregas.find(e => e.id === m.id)).filter(Boolean);
+  box.innerHTML = `<div class="card card-pad">
+    <div class="field"><label for="qProto">Consultar por protocolo</label><div class="input-group"><input class="input" id="qProto" placeholder="EA-XXXXXX" style="text-transform:uppercase;font-family:var(--mono)"><button class="btn primary" id="qBtn">${ic('search')}<span class="hide-m">Consultar</span></button></div></div>
+    <div id="qRes"></div>
+    ${found.length ? `<div class="section-title" style="margin-top:8px">Enviadas deste dispositivo</div>${found.map(card).join('')}` : `<div class="empty" style="padding:24px 0 8px"><p>Nenhuma entrega registrada neste dispositivo. Use o protocolo para consultar.</p></div>`}
+    <p class="small muted" style="display:flex;align-items:center;gap:6px;margin-top:6px">${ic('refresh')} Atualiza automaticamente quando o professor avaliar.</p></div>`;
+  const q = () => { const v = $('#qProto').value.trim().toUpperCase().replace(/^EA-?/, 'EA-'); const e = Stu.d.entregas.find(x => x.protocolo === v);
+    $('#qRes').innerHTML = e ? card(e) : `<div class="callout danger small" style="margin-bottom:12px">${ic('alert')}<div>Protocolo não encontrado nesta atividade.</div></div>`; };
+  $('#qBtn').onclick = q; $('#qProto').onkeydown = e => { if (e.key === 'Enter') q(); };
+}
+
+/* =========================================================
+   ROTEADOR E INICIALIZAÇÃO
+   ========================================================= */
+function route() {
+  const h = location.hash.replace(/^#\/?/, ''); const parts = h.split('/');
+  S.currentDetail = null; S.onListChange = null; clearInterval(Stu.timer);
+  $$('#modal-root .modal-wrap').forEach(w => w.remove());
+  if (parts[0] === 'entregar' && parts[1]) return startStudent(parts[1]);
+  S.mode = 'prof'; document.title = APP;
+  if (!S.cfg) return viewSetup();
+  ensureShell(); updateBadges();
+  switch (parts[0]) {
+    case 'atividades': return viewAtividades();
+    case 'nova': return viewForm();
+    case 'editar': return viewForm(parts[1]);
+    case 'atividade': return viewDetail(parts[1]);
+    case 'config': return viewConfig();
+    default: return viewPainel();
+  }
+}
+document.addEventListener('keydown', e => {
+  if (S.mode !== 'prof' || !S.cfg || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || $('#modal-root').children.length) return;
+  if (e.key === 'n' || e.key === 'N') { e.preventDefault(); go('nova'); }
+  else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); manualRefresh(); }
+  else if (e.key === '/') { const s = $('#atvSearch') || $('#entSearch'); if (s) { e.preventDefault(); s.focus(); } else { e.preventDefault(); go('atividades'); } }
+});
+addEventListener('hashchange', route);
+addEventListener('online', () => { toast('Conexão restabelecida', 'success'); S.lastListPoll = 0; S.lastDetailPoll = 0; });
+addEventListener('offline', () => { setLive(false); toast('Você está offline', 'error'); });
+window.installApp = installApp;
+applyTheme();
+setupPWA();
+if (S.cfg) startPolling();
+route();
+</script>
+</body>
+</html>
