@@ -499,6 +499,9 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
    ========================================================= */
 const APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
 const APP = 'EntregaAcadêmica';
+const APP_VERSION = '5.1';           // versão deste arquivo
+const SHORT_LINK_MIN = '5.1';        // versão publicada mínima que entende links curtos (#/e/…)
+const verNum = v => String(v || '0').split('.').map(Number).reduce((a, n, i) => a + n / Math.pow(1000, i), 0);
 const TAG = '[EA]';
 const TAG_ANX = '[EA-anexo]';
 const API = 'https://api.github.com';
@@ -1089,7 +1092,7 @@ async function doLogin(user, pw, keep) {
   const sess = {user, nome:u.nome, papel:u.papel, conta:u.conta, contas, keep, trocar, desde:Date.now()};
   clearLocalData(); sessStore.set(sess); S.conf = conf; store.set('conf', conf); applySession(sess);
   S.mustChange = trocar ? k.raw : null;
-  S.perfil = null; S.perfilEtag = null; loadPerfil().catch(() => {}); ensureLinkKeys().catch(() => {});
+  S.perfil = null; S.perfilEtag = null; loadPerfil().catch(() => {}); ensureLinkKeys().catch(() => {}).then(() => autoUpdatePublished());
   return sess;
 }
 async function setOwnPassword(raw, newPw) {
@@ -1118,7 +1121,7 @@ async function publishApp() {
   if (S.conf?.appGist) { try { g = (await gh('/gists/' + S.conf.appGist, {method:'PATCH', token:tk, body:{files}})).data; } catch (e) { if (e.status !== 404) throw e; } }
   if (!g) g = (await gh('/gists', {method:'POST', token:tk, body:{description:`EntregaAcadêmica — ${S.conf?.instituicao || 'aplicativo'}`, public:false, files}})).data;
   const url = `https://gist.githack.com/${g.owner.login}/${g.id}/raw/index.html`;
-  await saveConfig(c => { c.appGist = g.id; c.appUrl = url; });
+  await saveConfig(c => { c.appGist = g.id; c.appUrl = url; c.appVersion = APP_VERSION; c.publicadoEm = new Date().toISOString(); });
   return url;
 }
 
@@ -1352,6 +1355,18 @@ async function configForStudent() {
   return conf;
 }
 // administradores completam índice e credencial de envio das contas (instalações anteriores)
+async function autoUpdatePublished() {
+  if (!isAdmin() || !S.conf?.appUrl || S.autoPub) return;
+  if (verNum(APP_VERSION) <= verNum(S.conf.appVersion)) return;
+  S.autoPub = true;
+  try {
+    toast(`Atualizando o app publicado para a versão ${APP_VERSION}…`, 'info', 4000);
+    await publishApp();
+    toast('App publicado atualizado. Pode levar alguns minutos para todos verem a nova versão.', 'success', 6000);
+    if (S.currentDetail) paintDetail(S.currentDetail);
+  } catch (e) { toast('Não foi possível atualizar o app publicado: ' + friendlyError(e), 'error', 7000); }
+  finally { S.autoPub = false; }
+}
 async function ensureLinkKeys() {
   if (!isAdmin() || !S.conf?.contas) return;
   const falta = Object.entries(S.conf.contas).filter(([cid, c]) => (!c.lk || typeof c.idx !== 'number') && S.sess.contas[cid]);
@@ -1371,7 +1386,7 @@ function appBase() {
 }
 function shareLink(id) {
   const b = (S.conf?.linkBase || appBase() || '').replace(/#.*$/, ''); if (!b) return null;
-  const code = shortCode(id);
+  const code = verNum(S.conf?.appVersion) >= verNum(SHORT_LINK_MIN) ? shortCode(id) : null;
   return code ? `${b}#/e/${code}` : `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}`;
 }
 function shareMsg(a, link) {
@@ -2209,7 +2224,8 @@ function admSistema() {
     <section class="card form-card"><h3>${ic('globe')} Endereço do sistema</h3><p>É o endereço que professores usam para entrar e que vai nos links dos alunos. O app é publicado num Gist da conta principal e servido via gist.githack.com.</p>
       ${c.appUrl ? `<div class="input-group" style="margin-bottom:12px"><input class="input selectable" readonly value="${esc(c.appUrl)}"><button class="btn" id="sCp">${ic('copy')}</button></div>` : `<div class="callout warn small" style="margin-bottom:12px">${ic('alert')}<div>O app ainda não foi publicado.</div></div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="sPub">${ic('upload')} ${c.appUrl ? 'Atualizar app publicado' : 'Publicar app'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a>` : ''}</div>
-      <p class="hint" style="margin-top:10px">Use “Atualizar” sempre que receber uma nova versão do arquivo do sistema: abra a nova versão logado como administrador e clique aqui. O endereço não muda.</p></section>
+      <div class="info-list" style="margin:14px 0 4px"><div><span>Versão publicada</span><b>${esc(c.appVersion || 'anterior à 5.1')}${c.publicadoEm ? ' · ' + fmtDT(c.publicadoEm) : ''}</b></div><div><span>Versão deste aparelho</span><b>${APP_VERSION}</b></div><div><span>Links dos alunos</span><b>${verNum(c.appVersion) >= verNum(SHORT_LINK_MIN) ? 'curtos' : 'longos (atualize o app para usar links curtos)'}</b></div></div>
+      <p class="hint" style="margin-top:10px">A atualização é automática quando um administrador entra com uma versão mais nova. Também é possível usar “Atualizar” manualmente sempre que receber uma nova versão do arquivo do sistema: abra a nova versão logado como administrador e clique aqui. O endereço não muda.</p></section>
     <section class="card form-card"><h3>${ic('link')} Endereço curto para os links dos alunos <span class="badge muted">opcional</span></h3><p>Os links já saem curtos (endereço do sistema + código de 23 caracteres). Para encurtar ainda mais, use um endereço da escola que <b>redirecione</b> para o endereço do sistema — por exemplo <code>escola.edu.br/entregas</code>. Os professores passam a copiar links como <code>escola.edu.br/entregas#/e/AbC…</code>.</p>
       <div class="input-group"><input class="input" id="sLinkBase" placeholder="https://escola.edu.br/entregas" value="${esc(c.linkBase || '')}"><button class="btn" id="sLinkOk">Salvar</button></div>
       <p class="hint" style="margin-top:8px">Configure o redirecionamento no site da escola ou no painel do seu domínio apontando para: <span class="selectable">${esc(c.appUrl || '—')}</span>. Deixe vazio para usar o endereço padrão.</p></section>
@@ -2481,6 +2497,8 @@ function paintMine() {
    ROTEADOR E INICIALIZAÇÃO
    ========================================================= */
 function route() {
+  const qe = new URLSearchParams(location.search).get('e');
+  if (qe && !location.hash) { history.replaceState(null, '', location.pathname + '#/e/' + qe); }
   const h = location.hash.replace(/^#\/?/, ''); const parts = h.split('/');
   S.currentDetail = null; S.onListChange = null; clearInterval(Stu.timer);
   $$('#modal-root .modal-wrap').forEach(w => w.remove());
@@ -2520,7 +2538,7 @@ if (S.sess) {
   startPolling();
   $('#app').innerHTML = `<div style="height:100vh;display:grid;place-items:center">${ic('loader', 'spin')}</div>`;
   if (/^#\/(entregar|e)\//.test(location.hash)) route();
-  else watchConfig().catch(() => {}).then(() => S.sess && loadPerfil()).then(() => ensureLinkKeys()).catch(() => {}).finally(() => { if (S.sess) route(); });
+  else watchConfig().catch(() => {}).then(() => S.sess && loadPerfil()).then(() => ensureLinkKeys()).then(() => autoUpdatePublished()).catch(() => {}).finally(() => { if (S.sess) route(); });
 } else route();
 </script>
 </body>
