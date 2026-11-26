@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Entregas">
 <meta name="description" content="Compartilhamento e recebimento de trabalhos acadêmicos em tempo real, usando GitHub Gist.">
 <title>EntregaAcadêmica</title>
+<script id="ea-boot" type="application/json">{}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231F4E79'/%3E%3Cpath d='M32 15 7 26.5 32 38l25-11.5z' fill='%23fff'/%3E%3Cpath d='M17 32.5v9.5c8.5 6.5 21.5 6.5 30 0v-9.5L32 39.5z' fill='%2336C2B4'/%3E%3C/svg%3E">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -266,6 +267,20 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .c-go{color:var(--muted)}
 .m-only{display:none}
 
+/* ---------- Admin ---------- */
+.u-head,.u-row{display:grid;grid-template-columns:minmax(220px,2.4fr) 1fr .8fr .8fr 1.3fr auto;gap:14px;align-items:center;padding:12px 20px}
+.u-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--surface-2);border-bottom:1px solid var(--border)}
+.u-row{border-bottom:1px solid var(--border)}
+.u-row:last-child{border-bottom:0}
+.u-row.off .who{opacity:.55}
+.u-actions{display:flex;gap:2px;justify-content:flex-end}
+.conta-card{padding:20px;display:flex;flex-direction:column;gap:14px;text-align:left}
+.meter{height:8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .4s}
+#admTabs button .ic{width:16px;height:16px}
+.owner-tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.side-out{margin-left:auto;color:var(--side-text);background:none;border:0;cursor:pointer;padding:6px;border-radius:8px}
+.side-out:hover{background:rgba(255,255,255,.1);color:#fff}
 /* ---------- Setup ---------- */
 .setup{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:1.05fr 1fr}
 .setup-art{background:radial-gradient(1200px 600px at -10% -20%,#2B6CA8 0%,transparent 60%),radial-gradient(800px 500px at 120% 120%,#16968C 0%,transparent 55%),var(--side);color:#DCE7F3;padding:56px 64px;display:flex;flex-direction:column;justify-content:center;gap:28px;position:relative;overflow:hidden}
@@ -427,6 +442,13 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
   .sub-row .m-meta{grid-area:meta;gap:14px;font-size:12.5px;color:var(--muted);padding-left:50px;flex-wrap:wrap}
   .sub-row .m-meta span{display:inline-flex;align-items:center;gap:5px}
   .sub-row .m-meta .ic{width:14px;height:14px}
+  .u-head{display:none}
+  .u-row{grid-template-columns:1fr auto;gap:8px 12px;padding:14px 16px}
+  .u-row .u-hide{display:none}
+  .u-row .u-actions{grid-column:1/-1;justify-content:flex-start;padding-left:50px}
+  #admTabs{width:100%;flex-wrap:nowrap;overflow-x:auto}
+  #admTabs button{flex:1 0 auto}
+  #admTabs button span{font-size:12.5px}
   .card-head{padding:14px 16px}
   .modal-wrap{align-items:flex-end;padding:0}
   .modal,.modal.sm,.modal.lg,.modal.xl{max-width:none;border-radius:22px 22px 0 0;max-height:92dvh;transform:translateY(100%);border-bottom:0}
@@ -636,6 +658,7 @@ function friendlyError(e) {
     case 401: return 'Token inválido, expirado ou revogado.';
     case 403: return 'Acesso negado ou limite de requisições do GitHub atingido. Aguarde alguns minutos.';
     case 404: return 'Não encontrado. O item pode ter sido removido.';
+    case 410: return e.message;
     case 413: return 'Arquivo grande demais para envio.';
     case 422: return 'O GitHub recusou os dados' + (e.message ? `: ${e.message}` : '.') ;
     default: return e.message || 'Erro inesperado.';
@@ -646,7 +669,7 @@ function parseActivityGist(g) {
   let atv = {}; try { atv = JSON.parse(f['atividade.json'].content); } catch {}
   let aval = {}; try { aval = JSON.parse(f['avaliacoes.json']?.content || '{}'); } catch {}
   const entregas = Object.keys(f).filter(n => n.startsWith('entrega_')).map(n => {
-    try { const e = JSON.parse(f[n].content); e._file = n; return e; } catch { return null; }
+    try { const e = JSON.parse(f[n].content); e._file = n; e._g = g.id; return e; } catch { return null; }
   }).filter(Boolean).sort((a, b) => new Date(b.enviadoEm) - new Date(a.enviadoEm));
   // reenvios
   const groups = {};
@@ -663,6 +686,52 @@ function atvStatus(a) {
     if (ms < 86400000 * 2) return {k:'warn', t:'Vence ' + until(a.prazo), i:'clock'};
   }
   return {k:'success', t:'Recebendo entregas', i:'zap'};
+}
+/* ---------- retenção: arquivos ficam no máximo 10 dias na nuvem ---------- */
+const RETENCAO_DIAS = 10, DIA = 86400000;
+// base = prazo da atividade; sem prazo ou entrega após o prazo, conta a partir do envio
+function expiraEm(e, atv) {
+  const env = new Date(e.enviadoEm), pz = atv?.prazo ? new Date(atv.prazo) : null;
+  return new Date(((pz && pz > env) ? pz : env).getTime() + RETENCAO_DIAS * DIA);
+}
+const temArquivos = e => (e.arquivos || []).length > 0 && !!e.anexoGist && !e.removidoEm;
+const diasAte = d => Math.ceil((new Date(d) - Date.now()) / DIA);
+const fmtDia = d => new Date(d).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric'});
+function retBadge(e, atv) {
+  if (e.removidoEm) return `<span class="badge muted">${ic('trash')}Arquivos removidos</span>`;
+  if (!temArquivos(e)) return '';
+  const n = diasAte(expiraEm(e, atv));
+  return n <= 3 ? `<span class="badge danger" title="Arquivos serão apagados em ${fmtDia(expiraEm(e, atv))}">${ic('clock')}${n <= 0 ? 'Apaga hoje' : `Apaga em ${n}d`}</span>` : '';
+}
+// apaga anexos vencidos de uma atividade e registra a remoção na entrega
+async function purgeActivity(id, d, token) {
+  const now = Date.now(), files = {};
+  for (const e of d.entregas) {
+    if (!temArquivos(e) || expiraEm(e, d.atv) > now) continue;
+    try { await gh('/gists/' + e.anexoGist, {method:'DELETE', token}); } catch (err) { if (err.status !== 404) continue; }
+    const {_file, _g, _reenvio, _substituida, ...clean} = e;
+    files[e._file] = {content: JSON.stringify({...clean, anexoGist:null, removidoEm:new Date().toISOString()}, null, 2)};
+  }
+  if (!Object.keys(files).length) return 0;
+  await gh('/gists/' + id, {method:'PATCH', token, body:{files}});
+  return Object.keys(files).length;
+}
+async function sweepRetention() {
+  if (!S.sess || S.sweeping) return; S.sweeping = true;
+  const done = new Set(store.get('purged', [])); let total = 0;
+  try {
+    for (const it of S.list.filter(x => isMine(x) || isAdmin())) {
+      const pend = it.entregas.filter(n => !done.has(n) && tsFromName(n) + RETENCAO_DIAS * DIA < Date.now());
+      if (!pend.length) continue;
+      const {d} = await loadDetail(it.id);
+      total += await purgeActivity(it.id, d, tokG(it.id));
+      if (S.details[it.id]) S.details[it.id].etag = null;
+      const {d: fresh} = await loadDetail(it.id, {force:true});
+      fresh.entregas.forEach(e => { if (!temArquivos(e) || expiraEm(e, fresh.atv) <= Date.now()) done.add(e._file); });
+      await sleep(400);
+    }
+  } catch {} finally { store.set('purged', [...done]); S.sweeping = false; }
+  if (total) { toast(`${total} entrega(s) tiveram os arquivos removidos após ${RETENCAO_DIAS} dias de armazenamento`, 'info', 5000); if (S.currentDetail) paintDetail(S.currentDetail); }
 }
 const canSubmit = a => !(a.aberta === false || (a.prazo && new Date(a.prazo) < Date.now() && !a.aceitarAtrasados));
 const b64ToBlob = (b64, type) => { const bin = atob(String(b64).replace(/\s/g, '')); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], {type: type || 'application/octet-stream'}); };
@@ -795,12 +864,12 @@ function sysNotify(title, body) {
    PROFESSOR
    ========================================================= */
 const S = {
-  mode:'prof', cfg: store.get('cfg', null), list: store.get('list', []), meta: store.get('meta', {}),
+  mode:'prof', cfg:null, sess:null, conf:store.get('conf', null), confEtag:null, sync:{}, ownerFilter:'__me', mustChange:null,
+  list: store.get('list', []), meta: store.get('meta', {}),
   seen: store.get('seen', {}), unreadBy: store.get('unreadBy', {}), details:{}, listEtag:null,
   currentDetail:null, onListChange:null, lastSync:0, lastListPoll:0, lastDetailPoll:0, flash:new Set(),
   filter:'', atvFilter:'todas', live:true
 };
-const saveCfg = () => store.set('cfg', S.cfg);
 const go = p => { location.hash = '#/' + p; };
 const firstName = () => (S.cfg?.name || '').split(' ')[0] || 'Professor(a)';
 function totalUnread() { return Object.values(S.unreadBy).reduce((a, b) => a + b, 0); }
@@ -829,12 +898,13 @@ function ensureShell() {
       <nav class="side-nav">
         <a data-nav="painel" href="#/painel">${ic('home')}<span>Painel</span></a>
         <a data-nav="atividades" href="#/atividades">${ic('folder')}<span>Atividades</span><em class="nav-badge" hidden></em></a>
+        ${isAdmin() ? `<a data-nav="admin" href="#/admin">${ic('shield')}<span>Administração</span></a>` : ''}
         <a data-nav="config" href="#/config">${ic('sliders')}<span>Configurações</span></a>
         <button class="side-link" onclick="showHelp()">${ic('help')}<span>Como funciona</span></button>
       </nav>
       <div class="side-foot">
         <button class="side-link install-btn" ${deferredPrompt ? '' : 'hidden'} onclick="installApp()">${ic('phone')}<span>Instalar aplicativo</span></button>
-        <div class="me"><img src="${esc(c.avatar || ICON192)}" alt=""><div><b>${esc(c.name)}</b><small>@${esc(c.login)}</small></div></div>
+        <div class="me">${avatar(c.name)}<div style="min-width:0"><b>${esc(c.name)}</b><small>${isAdmin() ? 'Administrador' : 'Professor(a)'}</small></div><button class="side-out" title="Sair" onclick="confirmDlg('Sair da sua conta neste dispositivo?',{ok:'Sair'}).then(o=>o&&logout())">${ic('logout')}</button></div>
       </div>
     </aside>
     <div class="main">
@@ -853,7 +923,7 @@ function ensureShell() {
       <a data-nav="atividades" href="#/atividades">${ic('folder')}<span>Atividades</span><em class="nav-badge" hidden></em></a>
       <a class="tab-fab" href="#/nova" aria-label="Nova atividade">${ic('plus')}</a>
       <a data-nav="config" href="#/config">${ic('sliders')}<span>Ajustes</span></a>
-      <button onclick="showHelp()">${ic('help')}<span>Ajuda</span></button>
+      ${isAdmin() ? `<a data-nav="admin" href="#/admin">${ic('shield')}<span>Admin</span></a>` : `<button onclick="showHelp()">${ic('help')}<span>Ajuda</span></button>`}
     </nav>
   </div>`;
   $('#refreshBtn').onclick = () => manualRefresh();
@@ -871,7 +941,7 @@ function viewHTML(html, cls = 'wrap') { const v = $('#view'); v.innerHTML = `<di
 async function manualRefresh() {
   const b = $('#refreshBtn'); b.querySelector('svg').classList.add('spin');
   try {
-    await syncList(true);
+    await syncList('full');
     if (S.currentDetail) { S.details[S.currentDetail] && (S.details[S.currentDetail].etag = null); await refreshDetail(S.currentDetail); }
     S.onListChange && S.onListChange();
     toast('Dados atualizados', 'success', 1800);
@@ -879,31 +949,220 @@ async function manualRefresh() {
   b.querySelector('svg').classList.remove('spin');
 }
 window.showHelp = () => modal({title:'Como funciona', size:'lg', body:`<div class="help-steps">
-  <div class="help-step"><span class="n">1</span><div><b>Crie uma atividade</b><p>Defina título, turma, instruções, prazo e formatos aceitos. Ela fica salva num Gist secreto da sua conta GitHub.</p></div></div>
+  <div class="help-step"><span class="n">1</span><div><b>Crie uma atividade</b><p>Defina título, turma, instruções, prazo e formatos aceitos. Ela fica salva com segurança no armazenamento da instituição.</p></div></div>
   <div class="help-step"><span class="n">2</span><div><b>Envie o link para a turma</b><p>Copie o link exclusivo da atividade e compartilhe por WhatsApp, e-mail ou no ambiente virtual. Os alunos não precisam de conta.</p></div></div>
   <div class="help-step"><span class="n">3</span><div><b>Os alunos enviam o trabalho pelo link</b><p>Eles preenchem nome e matrícula, anexam arquivos (ou um link) e recebem um protocolo de entrega.</p></div></div>
+  <div class="help-step"><span class="n">${ic('clock')}</span><div><b>Armazenamento por ${RETENCAO_DIAS} dias</b><p>Os arquivos enviados ficam na nuvem por até ${RETENCAO_DIAS} dias após o prazo da atividade (ou após o envio, se não houver prazo ou se a entrega for atrasada). Depois são apagados automaticamente; notas e devolutivas continuam registradas.</p></div></div>
   <div class="help-step"><span class="n">4</span><div><b>Você recebe em tempo real</b><p>As entregas aparecem automaticamente, com alerta sonoro e notificação. Visualize, baixe, avalie com nota e devolutiva — o aluno consulta pelo protocolo.</p></div></div>
   </div><div class="divider"></div>
   <div class="callout info">${ic('zap')}<div><b>Atalhos de teclado:</b> <span class="kbd">N</span> nova atividade · <span class="kbd">/</span> buscar · <span class="kbd">R</span> atualizar · <span class="kbd">Esc</span> fechar janelas</div></div>`});
 
-/* ---------- sincronização ---------- */
-function parseDesc(d) { const s = (d || '').slice(TAG.length).trim(); const i = s.indexOf(' ¦ '); return i > 0 ? {titulo:s.slice(0, i), turma:s.slice(i + 3)} : {titulo:s, turma:''}; }
+/* ---------- instalação, criptografia e configuração central ---------- */
+// BOOT é gravado dentro do HTML publicado (aponta para o Gist de configuração da instituição)
+let BOOT = (() => { try { const b = JSON.parse($('#ea-boot').textContent || '{}'); if (b.cfg) return b; } catch {} return store.get('boot', null); })();
+const te = new TextEncoder(), td = new TextDecoder();
+const b64e = buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); };
+const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+const PBKDF_ITER = 250000;
+const EC = {name:'ECDH', namedCurve:'P-256'};
+const pubOnly = j => ({kty:j.kty, crv:j.crv, x:j.x, y:j.y});
+async function pwKey(pw, salt, iter) {
+  const base = await crypto.subtle.importKey('raw', te.encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:iter, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt', 'decrypt']);
+}
+async function wrapPriv(raw, pw) {
+  const salt = rnd(16), iv = rnd(12), k = await pwKey(pw, salt, PBKDF_ITER);
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, raw);
+  return {salt:b64e(salt), iv:b64e(iv), iter:PBKDF_ITER, ct:b64e(ct), rev:Date.now()};
+}
+async function makeKeys(pw) {
+  const kp = await crypto.subtle.generateKey(EC, true, ['deriveKey']);
+  const pub = pubOnly(await crypto.subtle.exportKey('jwk', kp.publicKey));
+  const raw = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+  return {pub, chave: await wrapPriv(raw, pw)};
+}
+async function unlockPriv(chave, pw) {
+  const k = await pwKey(pw, b64d(chave.salt), chave.iter);
+  let raw; try { raw = await crypto.subtle.decrypt({name:'AES-GCM', iv:b64d(chave.iv)}, k, b64d(chave.ct)); } catch { throw new Error('SENHA'); }
+  return {raw, key: await crypto.subtle.importKey('pkcs8', raw, EC, false, ['deriveKey'])};
+}
+async function seal(pubJwk, text) {
+  const pub = await crypto.subtle.importKey('jwk', {...pubOnly(pubJwk), ext:true}, EC, false, []);
+  const eph = await crypto.subtle.generateKey(EC, true, ['deriveKey']);
+  const k = await crypto.subtle.deriveKey({name:'ECDH', public:pub}, eph.privateKey, {name:'AES-GCM', length:256}, false, ['encrypt']);
+  const iv = rnd(12), ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, te.encode(text));
+  return {epk: pubOnly(await crypto.subtle.exportKey('jwk', eph.publicKey)), iv:b64e(iv), ct:b64e(ct)};
+}
+async function unseal(priv, box) {
+  const epk = await crypto.subtle.importKey('jwk', {...box.epk, ext:true}, EC, false, []);
+  const k = await crypto.subtle.deriveKey({name:'ECDH', public:epk}, priv, {name:'AES-GCM', length:256}, false, ['decrypt']);
+  return td.decode(await crypto.subtle.decrypt({name:'AES-GCM', iv:b64d(box.iv)}, k, b64d(box.ct)));
+}
+function genPw() {
+  const s = 'bcdfghjklmnprstvz', v = 'aeiou', r = rnd(12); let w = '';
+  for (let i = 0; i < 3; i++) { w += (i ? '-' : '') + s[r[i * 3] % s.length].toUpperCase() + v[r[i * 3 + 1] % 5] + s[r[i * 3 + 2] % s.length] + v[r[i] % 5]; }
+  return w + '-' + (1000 + (r[10] * 256 + r[11]) % 9000);
+}
+const suggestUser = n => norm(n).replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean).filter((w, i, a) => i === 0 || i === a.length - 1).join('.').slice(0, 30);
+const validUser = u => /^[a-z0-9._-]{3,30}$/.test(u);
+
+/* ---------- sessão ---------- */
+const sessStore = {
+  get() { try { const v = localStorage.getItem('ea:sess') || sessionStorage.getItem('ea:sess'); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set(s) { try { const j = JSON.stringify(s); (s.keep ? localStorage : sessionStorage).setItem('ea:sess', j); (s.keep ? sessionStorage : localStorage).removeItem('ea:sess'); } catch {} },
+  del() { try { localStorage.removeItem('ea:sess'); sessionStorage.removeItem('ea:sess'); } catch {} }
+};
+function applySession(sess) {
+  S.sess = sess;
+  const c = sess.contas[sess.conta];
+  S.cfg = {token:c.token, login:c.login, name:sess.nome, user:sess.user, papel:sess.papel, conta:sess.conta};
+}
+const isAdmin = () => S.sess?.papel === 'admin';
+const tokOf = cid => S.sess?.contas[cid]?.token || S.cfg.token;
+const itemOf = id => S.list.find(x => x.id === id);
+const tokG = id => tokOf(itemOf(id)?.conta || S.cfg.conta);
+const isMine = it => !!it && (it.owner === S.sess?.user || (!it.owner && isAdmin()));
+const mine = () => S.list.filter(isMine);
+const profName = u => S.conf?.usuarios?.[u]?.nome || u || 'Administrador';
+function clearLocalData() {
+  ['list', 'meta', 'seen', 'unreadBy', 'conf', 'purged'].forEach(k => store.del(k));
+  Object.assign(S, {list:[], meta:{}, seen:{}, unreadBy:{}, details:{}, sync:{}, conf:null, cfg:null, sess:null, mustChange:null, ownerFilter:'__me'});
+  updateBadges();
+}
+function logout(msg) {
+  sessStore.del(); clearLocalData(); clearInterval(pollTimer);
+  $('#shell')?.remove();
+  history.replaceState(null, '', location.pathname + location.search);
+  route();
+  if (msg) modal({title:'Sessão encerrada', size:'sm', body:`<p style="color:var(--text-2)">${esc(msg)}</p>`, footer:'<button class="btn primary" data-close>Entendi</button>'});
+}
+
+/* ---------- configuração central (Gist [EA-config]) ---------- */
+async function confFromGist(g) {
+  const f = g.files['config.json']; if (!f) throw new ApiError(404, 'Configuração não encontrada');
+  return JSON.parse(f.truncated ? await fetchRaw(f.raw_url) : f.content);
+}
+async function fetchConfigPublic() {
+  try { return await confFromGist((await gh('/gists/' + BOOT.cfg)).data); }
+  catch (e) { if (e.status === 404) throw e; return JSON.parse(await fetchRaw(`https://gist.githubusercontent.com/${BOOT.owner}/${BOOT.cfg}/raw/config.json?t=${Date.now()}`)); }
+}
+async function fetchPerfil(u, token) {
+  if (!u.perfil) return null;
+  try { const r = await gh('/gists/' + u.perfil, {token}); return JSON.parse(r.data.files['perfil.json'].content); }
+  catch { try { return JSON.parse(await fetchRaw(`https://gist.githubusercontent.com/${u.perfilOwner}/${u.perfil}/raw/perfil.json?t=${Date.now()}`)); } catch { return null; } }
+}
+// a chave válida é a mais recente entre a definida pelo administrador e a alterada pelo próprio usuário
+const chaveAtual = (u, p) => (p?.chave && p.chave.rev >= (u.chave.rev || 0)) ? {chave:p.chave, trocar:false} : {chave:u.chave, trocar:!!u.trocarSenha};
+async function saveConfig(mut) {
+  const tk = tokOf(BOOT.owner);
+  const conf = await confFromGist((await gh('/gists/' + BOOT.cfg, {token:tk})).data);
+  await mut(conf);
+  conf.atualizadoEm = new Date().toISOString();
+  await gh('/gists/' + BOOT.cfg, {method:'PATCH', token:tk, body:{files:{'config.json':{content:JSON.stringify(conf, null, 1)}}}});
+  S.conf = conf; S.confEtag = null; store.set('conf', conf);
+  return conf;
+}
+async function watchConfig() {
+  if (!S.sess || !BOOT) return;
+  const r = await gh('/gists/' + BOOT.cfg, {token:S.cfg.token, etag:S.confEtag});
+  if (r.notModified) return;
+  S.confEtag = r.etag;
+  const conf = await confFromGist(r.data); S.conf = conf; store.set('conf', conf);
+  const u = conf.usuarios?.[S.sess.user];
+  if (!u || u.ativo === false) return logout('Seu acesso foi desativado pelo administrador do sistema.');
+  if (u.papel !== S.sess.papel) return logout('Seu perfil de acesso foi alterado. Entre novamente.');
+  if (u.sessaoRev && u.sessaoRev > S.sess.desde) return logout('Sua senha foi redefinida pelo administrador. Entre com a nova senha.');
+  for (const [cid, c] of Object.entries(S.sess.contas)) if (!u.cofres?.[cid] || u.cofres[cid].versao !== c.versao) return logout('As credenciais de acesso foram renovadas pelo administrador. Entre novamente.');
+  if (u.nome !== S.sess.nome) { S.sess.nome = u.nome; sessStore.set(S.sess); applySession(S.sess); $('#shell')?.remove(); route(); }
+}
+async function doLogin(user, pw, keep) {
+  user = norm(user);
+  const conf = await fetchConfigPublic(); const u = conf.usuarios?.[user];
+  if (!u) throw new Error('Usuário ou senha incorretos.');
+  const {chave, trocar} = chaveAtual(u, await fetchPerfil(u, null));
+  let k; try { k = await unlockPriv(chave, pw); } catch { throw new Error('Usuário ou senha incorretos.'); }
+  if (u.ativo === false) throw new Error('Seu acesso está desativado. Fale com o administrador do sistema.');
+  const contas = {};
+  for (const [cid, cf] of Object.entries(u.cofres || {})) contas[cid] = {token: await unseal(k.key, cf.box), login: conf.contas[cid]?.login || cid, versao: cf.versao};
+  if (!contas[u.conta]) throw new Error('Seu acesso ainda não tem armazenamento configurado. Fale com o administrador.');
+  const sess = {user, nome:u.nome, papel:u.papel, conta:u.conta, contas, keep, trocar, desde:Date.now()};
+  clearLocalData(); sessStore.set(sess); S.conf = conf; store.set('conf', conf); applySession(sess);
+  S.mustChange = trocar ? k.raw : null;
+  return sess;
+}
+async function setOwnPassword(raw, newPw) {
+  const chave = await wrapPriv(raw, newPw);
+  const u = S.conf.usuarios[S.sess.user];
+  await gh('/gists/' + u.perfil, {method:'PATCH', token:tokOf(S.sess.conta), body:{files:{'perfil.json':{content:JSON.stringify({usuario:S.sess.user, chave}, null, 1)}}}});
+  S.sess.trocar = false; sessStore.set(S.sess); S.mustChange = null;
+}
+async function newUserRecord(conf, {user, nome, email, papel, conta}, pw, trocar = true) {
+  const keys = await makeKeys(pw);
+  const cids = papel === 'admin' ? Object.keys(conf.contas) : [conta];
+  const cofres = {};
+  for (const cid of cids) cofres[cid] = {versao:conf.contas[cid].versao, box: await seal(keys.pub, tokOf(cid))};
+  const pg = (await gh('/gists', {method:'POST', token:tokOf(conta), body:{description:`[EA-perfil:${user}]`, public:false, files:{'perfil.json':{content:JSON.stringify({usuario:user, chave:null})}}}})).data;
+  return {nome, email, papel, conta, ativo:true, pub:keys.pub, chave:keys.chave, cofres, perfil:pg.id, perfilOwner:pg.owner.login, trocarSenha:trocar, criadoEm:new Date().toISOString()};
+}
+function sourceWithBoot(boot) {
+  return APP_SOURCE.replace(/(<script id="ea-boot" type="application\/json">)[^<]*(<\/script>)/, (_, a, b) => a + JSON.stringify(boot).replace(/</g, '\\u003c') + b);
+}
+async function publishApp() {
+  const tk = tokOf(BOOT.owner);
+  const files = {'index.html': {content: sourceWithBoot({cfg:BOOT.cfg, owner:BOOT.owner, inst:S.conf?.instituicao || ''})}};
+  let g = null;
+  if (S.conf?.appGist) { try { g = (await gh('/gists/' + S.conf.appGist, {method:'PATCH', token:tk, body:{files}})).data; } catch (e) { if (e.status !== 404) throw e; } }
+  if (!g) g = (await gh('/gists', {method:'POST', token:tk, body:{description:`EntregaAcadêmica — ${S.conf?.instituicao || 'aplicativo'}`, public:false, files}})).data;
+  const url = `https://gist.githack.com/${g.owner.login}/${g.id}/raw/index.html`;
+  await saveConfig(c => { c.appGist = g.id; c.appUrl = url; });
+  return url;
+}
+
+/* ---------- sincronização (paginada + incremental) ---------- */
+function listItem(g, cid) {
+  const d = g.description || ''; let owner, rest;
+  const m = d.match(/^\[EA:([a-z0-9._-]+)\] ([\s\S]*)$/);
+  if (m) { owner = m[1]; rest = m[2]; } else if (d.startsWith(TAG + ' ')) { owner = null; rest = d.slice(TAG.length + 1); } else return null;
+  if (!g.files || !g.files['atividade.json']) return null;
+  const i = rest.indexOf(' ¦ '), mt = S.meta[g.id];
+  return {id:g.id, conta:cid, owner, titulo: mt?.titulo || (i > 0 ? rest.slice(0, i) : rest), turma: mt?.turma ?? (i > 0 ? rest.slice(i + 3) : ''),
+    entregas:Object.keys(g.files).filter(n => n.startsWith('entrega_')), updated:g.updated_at, created:g.created_at};
+}
+const canSee = it => isAdmin() || it.owner === S.sess.user;
+async function fullSync(cid) {
+  const t0 = Date.now(), items = [];
+  for (let page = 1; page <= 60; page++) {
+    const r = await gh(`/gists?per_page=100&page=${page}`, {token:tokOf(cid)});
+    r.data.forEach(g => { const it = listItem(g, cid); if (it) items.push(it); });
+    if (r.data.length < 100) break;
+  }
+  S.sync[cid] = {full:t0, since:new Date(t0 - 300000).toISOString(), etag:null};
+  return items;
+}
 async function syncList(force) {
-  const r = await gh('/gists?per_page=100', {token:S.cfg.token, etag: force ? null : S.listEtag});
+  const cids = isAdmin() ? Object.keys(S.sess.contas) : [S.sess.conta];
+  const map = Object.fromEntries(S.list.map(i => [i.id, i])); const novas = []; let changed = false;
+  for (const cid of cids) {
+    let st = S.sync[cid], items, full = false;
+    if (force === 'full' || !st || Date.now() - st.full > 1200000) { items = await fullSync(cid); full = true; }
+    else {
+      if (force || Date.now() - new Date(st.since).getTime() > 900000) { st.since = new Date(Date.now() - 300000).toISOString(); st.etag = null; }
+      const r = await gh(`/gists?per_page=100&since=${encodeURIComponent(st.since)}`, {token:tokOf(cid), etag:st.etag});
+      if (r.notModified) continue;
+      st.etag = r.etag; items = r.data.map(g => listItem(g, cid)).filter(Boolean);
+    }
+    changed = true;
+    if (full) Object.keys(map).forEach(k => { if (map[k].conta === cid) delete map[k]; });
+    items.filter(canSee).forEach(it => {
+      const prev = S.seen[it.id];
+      if (prev && isMine(it)) it.entregas.forEach(n => { if (!prev.includes(n)) novas.push({id:it.id, titulo:it.titulo, file:n}); });
+      S.seen[it.id] = it.entregas; map[it.id] = it;
+    });
+  }
   S.lastSync = Date.now(); setLive(true);
-  if (r.notModified) return false;
-  S.listEtag = r.etag;
-  const items = r.data.filter(g => (g.description || '').startsWith(TAG + ' ') && g.files && g.files['atividade.json']).map(g => {
-    const {titulo, turma} = parseDesc(g.description);
-    const mt = S.meta[g.id]; return {id:g.id, titulo: mt?.titulo || titulo, turma: mt?.turma ?? turma, entregas:Object.keys(g.files).filter(n => n.startsWith('entrega_')), updated:g.updated_at, created:g.created_at};
-  });
-  const novas = [];
-  items.forEach(it => {
-    const prev = S.seen[it.id];
-    if (prev) it.entregas.forEach(n => { if (!prev.includes(n)) novas.push({id:it.id, titulo:it.titulo, file:n}); });
-    S.seen[it.id] = it.entregas;
-  });
-  S.list = items; store.set('list', items); store.set('seen', S.seen);
+  if (!changed) return false;
+  S.list = Object.values(map); store.set('list', S.list); store.set('seen', S.seen);
   if (novas.length) onNew(novas);
   return true;
 }
@@ -923,7 +1182,7 @@ function onNew(novas) {
 const metaOf = d => ({titulo:d.atv.titulo, turma:d.atv.turma, prazo:d.atv.prazo, aberta:d.atv.aberta, aceitarAtrasados:d.atv.aceitarAtrasados});
 async function loadDetail(id, {force} = {}) {
   const c = S.details[id];
-  const r = await gh('/gists/' + id, {token:S.cfg.token, etag: force || !c ? null : c.etag});
+  const r = await gh('/gists/' + id, {token:tokG(id), etag: force || !c ? null : c.etag});
   if (r.notModified) return {changed:false, d:c.d};
   const d = parseActivityGist(r.data);
   S.details[id] = {d, etag:r.etag};
@@ -938,14 +1197,15 @@ async function refreshDetail(id, silent) {
   const seen = S.seen[id] || [];
   const novas = d.entregas.filter(e => !seen.includes(e._file));
   S.seen[id] = names; store.set('seen', S.seen);
-  if (prev && novas.length && !silent) onNew(novas.map(e => ({id, titulo:d.atv.titulo, nome:e.nome, file:e._file})));
+  if (prev && novas.length && !silent && isMine(itemOf(id))) onNew(novas.map(e => ({id, titulo:d.atv.titulo, nome:e.nome, file:e._file})));
   if (S.currentDetail === id) paintDetail(id);
 }
 let pollTimer;
 function startPolling() {
   clearInterval(pollTimer);
+  S.lastConfPoll = Date.now(); S.lastSweep = Date.now() - 540000;
   pollTimer = setInterval(async () => {
-    if (S.mode !== 'prof' || !S.cfg) return;
+    if (S.mode !== 'prof' || !S.cfg || S.mustChange) return;
     const now = Date.now(), hidden = document.hidden;
     setLive(S.live);
     if (S.currentDetail && now - S.lastDetailPoll >= (hidden ? 30000 : 7000)) {
@@ -956,32 +1216,34 @@ function startPolling() {
       S.lastListPoll = now;
       syncList().then(ch => { if (ch && S.onListChange) S.onListChange(); }).catch(onPollErr);
     }
+    if (now - S.lastConfPoll >= 60000) { S.lastConfPoll = now; watchConfig().catch(() => {}); }
+    if (now - (S.lastSweep || 0) >= 600000 && S.list.length) { S.lastSweep = now; sweepRetention(); }
   }, 3000);
 }
 function onPollErr(e) {
   setLive(false);
-  if (e.status === 401) { toast('Seu token do GitHub não é mais válido. Configure novamente.', 'error', 6000); }
+  if (e.status === 401) watchConfig().catch(() => {});
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && S.mode === 'prof' && S.cfg) {
-    S.lastListPoll = 0; S.lastDetailPoll = 0;
+    S.lastListPoll = 0; S.lastDetailPoll = 0; S.lastConfPoll = 0;
     if (S.currentDetail && S.unreadBy[S.currentDetail]) { delete S.unreadBy[S.currentDetail]; store.set('unreadBy', S.unreadBy); updateBadges(); }
   }
 });
 
 /* ---------- link de compartilhamento ---------- */
 function appBase() {
-  if (S.cfg?.appUrl) return S.cfg.appUrl.split('#')[0];
+  if (S.conf?.appUrl) return S.conf.appUrl.split('#')[0];
   if (/^https?:/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname)) return location.href.split('#')[0];
   return null;
 }
-function shareLink(id) { const b = appBase(); return b ? `${b}#/entregar/${encodeLink({g:id, t:S.cfg.token})}` : null; }
+function shareLink(id) { const b = appBase(); return b ? `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}` : null; }
 function shareMsg(a, link) {
   return `📚 *${a.titulo}*${a.turma ? ` — ${a.turma}` : ''}\n${a.prazo ? `🗓️ Prazo: ${fmtDTlong(a.prazo)}\n` : ''}Envie seu trabalho pelo link:\n${link}`;
 }
 function shareBox(id, a) {
   const link = shareLink(id);
-  if (!link) return `<div class="share"><div class="callout warn" style="background:transparent;border:0;padding:0">${ic('alert')}<div><b>Defina o endereço público do app para gerar links.</b><br>Você está abrindo o sistema a partir de um arquivo local. Publique o app no seu Gist com um clique para obter um endereço acessível pelos alunos.<div style="margin-top:10px"><button class="btn primary sm" id="pubNow">${ic('globe')} Publicar app agora</button></div></div></div></div>`;
+  if (!link) return `<div class="share"><div class="callout warn" style="background:transparent;border:0;padding:0">${ic('alert')}<div><b>O endereço público do sistema ainda não foi definido.</b><br>${isAdmin() ? 'Publique o app para gerar links acessíveis aos alunos.<div style="margin-top:10px"><button class="btn primary sm" id="pubNow">' + ic('globe') + ' Publicar app agora</button></div>' : 'Peça ao administrador do sistema para publicar o app.'}</div></div></div>`;
   return `<div class="share">
     <div class="label">${ic('link')} Link de entrega para os alunos</div>
     <div class="input-group"><input class="input selectable" id="shareInput" readonly value="${esc(link)}"><button class="btn primary" id="copyLink">${ic('copy')}<span class="hide-m">Copiar</span></button></div>
@@ -1002,25 +1264,14 @@ function bindShare(root, id, a) {
   $('#copyMsg', root).onclick = () => copyText(shareMsg(a, link).replace(/\*/g, ''), 'Mensagem com link copiada');
   const ns = $('#nativeShare', root); if (ns) ns.onclick = () => navigator.share({title:a.titulo, text:shareMsg(a, link).replace(/\*/g, '').replace(link, '').trim(), url:link}).catch(() => {});
 }
-async function publishApp() {
-  const files = {'index.html': {content: APP_SOURCE}};
-  let g = null;
-  if (S.cfg.appGist) { try { g = (await gh('/gists/' + S.cfg.appGist, {method:'PATCH', token:S.cfg.token, body:{files}})).data; } catch (e) { if (e.status !== 404) throw e; } }
-  if (!g) g = (await gh('/gists', {method:'POST', token:S.cfg.token, body:{description:'EntregaAcadêmica — aplicativo web', public:false, files}})).data;
-  S.cfg.appGist = g.id;
-  S.cfg.appUrl = `https://gist.githack.com/${g.owner.login}/${g.id}/raw/index.html`;
-  saveCfg();
-}
 
-/* ---------- SETUP ---------- */
-function viewSetup() {
-  clearInterval(pollTimer);
-  $('#app').innerHTML = `
-  <div class="setup">
+/* ---------- telas de acesso: instalação, login, troca de senha ---------- */
+function authLayout(title, lead, form) {
+  const inst = S.conf?.instituicao || BOOT?.inst || '';
+  return `<div class="setup">
     <section class="setup-art">
-      <div class="brand">${LOGO}<div><b>${APP}</b><small style="opacity:.7">Plataforma de entregas acadêmicas</small></div></div>
-      <h1>Receba os trabalhos da turma em tempo real, com um único link.</h1>
-      <p>Crie a atividade, compartilhe o link e acompanhe cada entrega chegando — sem servidor, sem mensalidade. Tudo fica guardado com segurança em Gists secretos da sua conta GitHub.</p>
+      <div class="brand">${LOGO}<div><b>${APP}</b><small style="opacity:.7">${esc(inst || 'Plataforma de entregas acadêmicas')}</small></div></div>
+      <h1>${title}</h1><p>${lead}</p>
       <div class="feats">
         <div class="feat">${ic('link')}<div><b>Link único</b><small>Alunos enviam sem criar conta</small></div></div>
         <div class="feat">${ic('zap')}<div><b>Tempo real</b><small>Alerta sonoro e notificação</small></div></div>
@@ -1028,38 +1279,118 @@ function viewSetup() {
         <div class="feat">${ic('phone')}<div><b>Vira app</b><small>Instale no celular e no PC</small></div></div>
       </div>
     </section>
-    <section class="setup-side">
-      <form class="card setup-card" id="setupForm" autocomplete="off">
-        <div class="eyebrow">Acesso do professor</div>
-        <h2>Conectar ao GitHub Gist</h2>
-        <p class="muted small">É o seu “banco de dados”: atividades e entregas ficam em Gists secretos.</p>
-        <ol class="steps-mini">
-          <li><span>Use uma conta GitHub — de preferência <b>uma conta exclusiva para as aulas</b>.</span></li>
-          <li><span><a href="https://github.com/settings/tokens/new?scopes=gist&description=EntregaAcademica" target="_blank" rel="noopener">Gere um token clássico</a> marcando <b>somente</b> a permissão <code>gist</code>.</span></li>
-          <li><span>Cole o token abaixo e informe seu nome.</span></li>
-        </ol>
-        <div class="field"><label for="sName">Seu nome (visível para os alunos) <span class="req">*</span></label><input class="input" id="sName" required placeholder="Ex.: Profa. Ana Ribeiro" value="${esc(store.get('lastName', ''))}"></div>
-        <div class="field"><label for="sToken">Token do GitHub <span class="req">*</span></label><input class="input" id="sToken" required placeholder="ghp_…" type="password" spellcheck="false" autocomplete="off"><span class="hint">Fica salvo apenas neste dispositivo.</span></div>
-        <div class="callout warn small" style="margin-bottom:18px">${ic('shield')}<div>O token vai <b>codificado dentro do link</b> enviado aos alunos — é ele que permite gravar as entregas. Por isso use uma conta dedicada e só a permissão <code>gist</code>.</div></div>
-        <button class="btn primary lg block" id="sBtn" type="submit">${ic('key')} Conectar e começar</button>
-      </form>
-    </section>
-  </div>`;
-  $('#setupForm').onsubmit = async e => {
+    <section class="setup-side">${form}</section></div>`;
+}
+const pwField = (id, label, ph = '', ac = 'current-password') => `<div class="field"><label for="${id}">${label} <span class="req">*</span></label><div class="input-group"><input class="input" id="${id}" type="password" required autocomplete="${ac}" placeholder="${ph}"><button type="button" class="btn icon" data-eye="${id}" aria-label="Mostrar senha">${ic('eye')}</button></div></div>`;
+function bindEyes(root = document) { $$('[data-eye]', root).forEach(b => b.onclick = () => { const i = $('#' + b.dataset.eye); i.type = i.type === 'password' ? 'text' : 'password'; }); }
+
+function viewInstall() {
+  clearInterval(pollTimer);
+  const legacy = store.get('cfg', null);
+  $('#app').innerHTML = authLayout('Instale a plataforma da sua instituição em poucos minutos.',
+    'Você será o administrador: configura o armazenamento (GitHub Gist) uma única vez e cadastra os professores. Eles apenas entram com usuário e senha — sem tokens, sem configurações.',
+    `<form class="card setup-card" id="insForm" autocomplete="off">
+      <div class="eyebrow">Instalação · Administrador</div>
+      <h2>Configurar o sistema</h2>
+      <p class="muted small">Esta etapa é feita apenas uma vez.</p>
+      <div class="field" style="margin-top:18px"><label for="iInst">Nome da instituição <span class="req">*</span></label><input class="input" id="iInst" required maxlength="80" placeholder="Ex.: Colégio Estadual Machado de Assis"></div>
+      <div class="row"><div class="field"><label for="iNome">Seu nome <span class="req">*</span></label><input class="input" id="iNome" required maxlength="80" value="${esc(legacy?.name || '')}" placeholder="Nome completo"></div>
+      <div class="field"><label for="iUser">Usuário <span class="req">*</span></label><input class="input" id="iUser" required maxlength="30" placeholder="ex.: admin" autocapitalize="off"></div></div>
+      <div class="row">${pwField('iPw', 'Senha', 'mín. 8 caracteres', 'new-password')}${pwField('iPw2', 'Confirmar senha', '', 'new-password')}</div>
+      <div class="field"><label for="iTok">Token do GitHub (conta principal) <span class="req">*</span></label><input class="input" id="iTok" type="password" required spellcheck="false" value="${esc(legacy?.token || '')}" placeholder="ghp_…"><span class="hint"><a href="https://github.com/settings/tokens/new?scopes=gist&description=EntregaAcademica" target="_blank" rel="noopener">Gerar token clássico</a> com <b>somente</b> a permissão <code>gist</code>, numa conta exclusiva da instituição.</span></div>
+      ${legacy ? `<div class="callout info small" style="margin-bottom:16px">${ic('check')}<div>Encontramos a configuração da versão anterior. As atividades já criadas serão mantidas e ficarão com você.</div></div>` : ''}
+      <button class="btn primary lg block" id="iBtn" type="submit">${ic('shield')} Instalar e publicar</button>
+      <p class="small muted" style="margin-top:14px;text-align:center">Já instalado? Abra o endereço publicado do sistema.</p>
+    </form>`);
+  bindEyes();
+  $('#iNome').oninput = () => { if (!$('#iUser').dataset.touched) $('#iUser').value = suggestUser($('#iNome').value); };
+  $('#iUser').oninput = () => { $('#iUser').dataset.touched = 1; };
+  $('#insForm').onsubmit = async e => {
     e.preventDefault();
-    const name = $('#sName').value.trim(), token = $('#sToken').value.trim(), btn = $('#sBtn');
-    if (!name || !token) return;
-    busy(btn, true, 'Verificando…');
+    const inst = $('#iInst').value.trim(), nome = $('#iNome').value.trim(), user = norm($('#iUser').value), pw = $('#iPw').value, token = $('#iTok').value.trim();
+    if (!validUser(user)) return toast('Usuário: 3 a 30 caracteres, apenas letras minúsculas, números, ponto, hífen ou sublinhado.', 'error', 6000);
+    if (pw.length < 8) return toast('A senha precisa ter pelo menos 8 caracteres.', 'error');
+    if (pw !== $('#iPw2').value) return toast('As senhas não conferem.', 'error');
+    const btn = $('#iBtn'); busy(btn, true, 'Verificando token…');
     try {
       const r = await gh('/user', {token});
       const scopes = r.headers.get('X-OAuth-Scopes');
-      if (scopes !== null && scopes !== '' && !scopes.split(',').map(s => s.trim()).includes('gist')) throw new ApiError(0, 'Este token não tem a permissão "gist". Gere outro marcando essa opção.');
-      S.cfg = {token, name, login:r.data.login, avatar:r.data.avatar_url};
-      if (/^https?:/.test(location.protocol) && location.hostname.includes('githack')) S.cfg.appUrl = location.href.split('#')[0];
-      saveCfg(); store.set('lastName', name);
-      toast(`Conectado como @${r.data.login}`, 'success');
-      startPolling(); go('painel'); route();
-    } catch (err) { busy(btn, false); toast(err.status === 0 ? err.message : friendlyError(err), 'error', 6000); }
+      if (scopes && !scopes.split(',').map(s => s.trim()).includes('gist')) throw new Error('Este token não tem a permissão "gist".');
+      const login = r.data.login;
+      busy(btn, true, 'Criando chaves de segurança…');
+      const now = new Date().toISOString();
+      const conf = {v:2, instituicao:inst, criadoEm:now, contas:{[login]:{login, versao:1, principal:true, criadoEm:now}}, usuarios:{}};
+      S.sess = {contas:{[login]:{token, login, versao:1}}}; S.cfg = {token};
+      conf.usuarios[user] = await newUserRecord(conf, {user, nome, email:'', papel:'admin', conta:login}, pw, false);
+      busy(btn, true, 'Salvando configuração…');
+      const cg = (await gh('/gists', {method:'POST', token, body:{description:`[EA-config] ${inst}`, public:false, files:{'config.json':{content:JSON.stringify(conf, null, 1)}}}})).data;
+      BOOT = {cfg:cg.id, owner:login, inst}; store.set('boot', BOOT);
+      const sess = {user, nome, papel:'admin', conta:login, contas:{[login]:{token, login, versao:1}}, keep:true, desde:Date.now()};
+      sessStore.set(sess); S.conf = conf; applySession(sess);
+      busy(btn, true, 'Publicando o app…');
+      const url = await publishApp();
+      store.del('cfg');
+      startPolling(); history.replaceState(null, '', '#/admin/professores'); route();
+      modal({title:'Sistema instalado!', body:`<p style="color:var(--text-2);margin-bottom:14px">Este é o endereço oficial da plataforma. Envie aos professores junto com o usuário e senha de cada um (você os cadastra em <b>Administração → Professores</b>).</p>
+        <div class="input-group"><input class="input selectable" readonly value="${esc(url)}"><button class="btn primary" id="cpUrl">${ic('copy')}</button></div>
+        <p class="small muted" style="margin-top:10px">O endereço pode levar até 1 minuto para ficar disponível. A partir de agora, use-o também para acessar como administrador.</p>`,
+        footer:`<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">${ic('external')} Abrir endereço</a><button class="btn primary" data-close>Continuar</button>`,
+        onMount(m) { m.$('#cpUrl').onclick = () => copyText(url, 'Endereço copiado'); }});
+    } catch (err) { busy(btn, false); S.sess = null; S.cfg = null; toast(err.status ? friendlyError(err) : err.message, 'error', 7000); }
+  };
+}
+function viewLogin() {
+  clearInterval(pollTimer);
+  $('#app').innerHTML = authLayout('Receba os trabalhos da turma em tempo real, com um único link.',
+    'Entre com o usuário e a senha fornecidos pela coordenação. Crie atividades, compartilhe o link e acompanhe cada entrega chegando.',
+    `<form class="card setup-card" id="logForm">
+      <div class="eyebrow">${esc(BOOT?.inst || 'Área do professor')}</div>
+      <h2>Entrar</h2>
+      <p class="muted small" style="margin-bottom:20px">Acesso exclusivo para professores cadastrados.</p>
+      <div class="field"><label for="lUser">Usuário <span class="req">*</span></label><input class="input" id="lUser" required autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="seu.usuario" value="${esc(store.get('lastUser', ''))}"></div>
+      ${pwField('lPw', 'Senha')}
+      <label class="check" style="margin-bottom:18px;background:none;border:0;padding:0"><input type="checkbox" id="lKeep" checked><span>Manter conectado neste dispositivo</span></label>
+      <button class="btn primary lg block" id="lBtn" type="submit">${ic('key')} Entrar</button>
+      <p class="small muted" style="margin-top:16px;text-align:center">Esqueceu a senha? Peça ao administrador para redefini-la.</p>
+    </form>`);
+  bindEyes();
+  setTimeout(() => ($('#lUser').value ? $('#lPw') : $('#lUser')).focus(), 50);
+  $('#logForm').onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('#lBtn'); busy(btn, true, 'Entrando…');
+    try {
+      const s = await doLogin($('#lUser').value, $('#lPw').value, $('#lKeep').checked);
+      store.set('lastUser', s.user);
+      startPolling();
+      if (!S.mustChange) toast(`Bem-vindo(a), ${s.nome.split(' ')[0]}!`, 'success');
+      route();
+    } catch (err) { busy(btn, false); toast(err.status ? friendlyError(err) : err.message, 'error', 5000); $('#lPw').select(); }
+  };
+}
+function viewTrocarSenha() {
+  $('#app').innerHTML = authLayout('Defina sua senha pessoal.', 'Por segurança, troque a senha temporária recebida do administrador antes de continuar. Só você saberá a nova senha.',
+    `<form class="card setup-card" id="tsForm">
+      <div class="eyebrow">Primeiro acesso</div><h2>Criar nova senha</h2>
+      <p class="muted small" style="margin-bottom:20px">Olá, ${esc(S.sess.nome)}. Use pelo menos 8 caracteres.</p>
+      ${S.mustChange instanceof ArrayBuffer ? '' : pwField('tsOld', 'Senha temporária')}
+      ${pwField('tsPw', 'Nova senha', 'mín. 8 caracteres', 'new-password')}${pwField('tsPw2', 'Confirmar nova senha', '', 'new-password')}
+      <button class="btn primary lg block" id="tsBtn" type="submit">${ic('check')} Salvar e continuar</button>
+      <button class="btn ghost block" type="button" id="tsOut" style="margin-top:8px">Sair</button>
+    </form>`);
+  bindEyes();
+  $('#tsOut').onclick = () => logout();
+  $('#tsForm').onsubmit = async e => {
+    e.preventDefault();
+    const pw = $('#tsPw').value;
+    if (pw.length < 8) return toast('A senha precisa ter pelo menos 8 caracteres.', 'error');
+    if (pw !== $('#tsPw2').value) return toast('As senhas não conferem.', 'error');
+    const btn = $('#tsBtn'); busy(btn, true, 'Salvando…');
+    try {
+      let raw = S.mustChange instanceof ArrayBuffer ? S.mustChange : null;
+      if (!raw) { const u = S.conf.usuarios[S.sess.user]; const {chave} = chaveAtual(u, await fetchPerfil(u, S.cfg.token)); raw = (await unlockPriv(chave, $('#tsOld').value)).raw; }
+      await setOwnPassword(raw, pw);
+      toast('Senha definida com sucesso!', 'success'); route();
+    } catch (err) { busy(btn, false); toast(err.message === 'SENHA' ? 'Senha temporária incorreta.' : friendlyError(err), 'error'); }
   };
 }
 
@@ -1073,27 +1404,31 @@ async function viewPainel() {
   S.onListChange = paintPainel;
   if (S.list.length) paintPainel();
   try { await syncList(true); } catch (e) { setLive(false); if (!S.list.length) toast(friendlyError(e), 'error'); }
+  if (isAdmin() && !appBase()) S.needPublish = true;
   paintPainel();
-  const recent = [...S.list].sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 8);
+  const recent = mine().sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 8);
   for (const it of recent) { if (!S.details[it.id] || !S.meta[it.id]) { try { await loadDetail(it.id); } catch {} } }
   if (location.hash.startsWith('#/painel') || location.hash === '' || location.hash === '#/') paintPainel();
 }
 function paintPainel() {
   if (!$('#view') || S.currentDetail) return;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const total = S.list.reduce((a, i) => a + i.entregas.length, 0);
-  const hoje = S.list.reduce((a, i) => a + i.entregas.filter(n => tsFromName(n) >= today.getTime()).length, 0);
-  const abertas = S.list.filter(i => { const m = S.meta[i.id]; return !m || canSubmit(m); }).length;
+  const L = mine();
+  const total = L.reduce((a, i) => a + i.entregas.length, 0);
+  const hoje = L.reduce((a, i) => a + i.entregas.filter(n => tsFromName(n) >= today.getTime()).length, 0);
+  const abertas = L.filter(i => { const m = S.meta[i.id]; return !m || canSubmit(m); }).length;
   let avaliadas = 0, pend = 0;
-  Object.values(S.details).forEach(({d}) => d.entregas.filter(e => !e._substituida).forEach(e => { (d.aval[e.id]?.status === 'avaliado') ? avaliadas++ : pend++; }));
+  Object.entries(S.details).filter(([k]) => isMine(itemOf(k))).forEach(([, {d}]) => d.entregas.filter(e => !e._substituida).forEach(e => { (d.aval[e.id]?.status === 'avaliado') ? avaliadas++ : pend++; }));
   const feed = [];
-  Object.values(S.details).forEach(({d}) => d.entregas.forEach(e => feed.push({e, d})));
+  Object.entries(S.details).filter(([k]) => isMine(itemOf(k))).forEach(([, {d}]) => d.entregas.forEach(e => feed.push({e, d})));
   feed.sort((a, b) => new Date(b.e.enviadoEm) - new Date(a.e.enviadoEm));
-  const empty = !S.list.length;
+  const empty = !L.length;
   const needUrl = !appBase();
   viewHTML(`
     <div class="hello"><div><div class="eyebrow">Visão geral</div><h2>${greeting()}, ${esc(firstName())}</h2></div>
       <a class="btn primary hide-m" href="#/nova">${ic('plus')} Nova atividade</a></div>
+    ${(() => { const L2 = Object.entries(S.details).filter(([k]) => isMine(itemOf(k))).map(([k, {d}]) => ({k, d, n:d.entregas.filter(e => temArquivos(e) && diasAte(expiraEm(e, d.atv)) <= 3).length})).filter(x => x.n);
+      return L2.length ? `<div class="callout danger" style="margin-bottom:18px">${ic('clock')}<div><b>Arquivos prestes a expirar:</b> ${L2.map(x => `<a href="#/atividade/${x.k}">${esc(x.d.atv.titulo)}</a> (${x.n})`).join(', ')}. Os trabalhos ficam na nuvem por até ${RETENCAO_DIAS} dias após o prazo — baixe uma cópia se precisar guardar.</div></div>` : ''; })()}
     ${needUrl && !empty ? `<div class="callout warn" style="margin-bottom:18px">${ic('globe')}<div><b>Falta um passo para gerar os links dos alunos:</b> publique o app no seu Gist. <a href="#/config">Abrir configurações →</a></div></div>` : ''}
     <div class="stats">
       <div class="card stat s1"><div class="s-ic">${ic('folder')}</div><div><b>${abertas}</b><span>Atividades abertas</span></div></div>
@@ -1113,7 +1448,7 @@ function paintPainel() {
       </section>
       <section class="card">
         <div class="card-head"><h3>${ic('folder')} Atividades</h3><a class="btn sm ghost" href="#/atividades">Ver todas ${ic('chevron')}</a></div>
-        ${[...S.list].sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 5).map(it => {
+        ${[...L].sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 5).map(it => {
           const m = S.meta[it.id], st = atvStatus(m || {titulo:it.titulo}), un = S.unreadBy[it.id];
           return `<a class="mini-atv" href="#/atividade/${it.id}"><div class="top"><b>${esc(it.titulo)}</b>${un ? `<span class="new-pill">+${un}</span>` : `<span class="badge ${st.k}">${st.t}</span>`}</div>
             <small>${esc(it.turma || 'Sem turma')} · ${it.entregas.length} entrega${it.entregas.length === 1 ? '' : 's'}${m?.prazo ? ' · prazo ' + fmtDT(m.prazo) : ''}</small></a>`;
@@ -1134,7 +1469,9 @@ async function viewAtividades() {
 function paintAtividades() {
   if (!location.hash.startsWith('#/atividades')) return;
   const q = norm(S.filter);
-  const list = [...S.list].sort((a, b) => new Date(b.created) - new Date(a.created)).filter(it => {
+  const of = S.ownerFilter || '__me';
+  const base = !isAdmin() ? S.list : of === '__all' ? S.list : of === '__me' ? mine() : S.list.filter(i => i.owner === of);
+  const list = [...base].sort((a, b) => new Date(b.created) - new Date(a.created)).filter(it => {
     const m = S.meta[it.id];
     if (q && !norm(it.titulo + ' ' + it.turma).includes(q)) return false;
     if (S.atvFilter === 'abertas') return !m || canSubmit(m);
@@ -1145,6 +1482,7 @@ function paintAtividades() {
   viewHTML(`
     <div class="toolbar">
       <div class="search">${ic('search')}<input class="input" id="atvSearch" placeholder="Buscar por título ou turma…" value="${esc(S.filter)}"></div>
+      ${isAdmin() ? `<select class="input" id="ownSel" style="width:auto;min-width:200px"><option value="__me" ${of === '__me' ? 'selected' : ''}>Minhas atividades</option><option value="__all" ${of === '__all' ? 'selected' : ''}>Todos os professores</option>${Object.entries(S.conf?.usuarios || {}).filter(([k]) => k !== S.sess.user).sort((a, b) => a[1].nome.localeCompare(b[1].nome)).map(([k, u]) => `<option value="${esc(k)}" ${of === k ? 'selected' : ''}>${esc(u.nome)}</option>`).join('')}${[...new Set(S.list.map(i => i.owner).filter(o => o && !S.conf?.usuarios?.[o]))].map(o => `<option value="${esc(o)}" ${of === o ? 'selected' : ''}>${esc(o)} (removido)</option>`).join('')}</select>` : ''}
       <div class="seg" id="atvSeg">${['todas', 'abertas', 'encerradas'].map(k => `<button data-k="${k}" class="${S.atvFilter === k ? 'on' : ''}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
       <a class="btn primary hide-m" href="#/nova">${ic('plus')} Nova atividade</a>
     </div>
@@ -1152,7 +1490,7 @@ function paintAtividades() {
       const m = S.meta[it.id], st = atvStatus(m || {}), un = S.unreadBy[it.id];
       return `<a class="card atv-card" href="#/atividade/${it.id}">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div style="min-width:0"><div class="eyebrow">${esc(it.turma || 'Sem turma')}</div><h3>${esc(it.titulo)}</h3></div>${un ? `<span class="new-pill">+${un} nova${un > 1 ? 's' : ''}</span>` : ''}</div>
-        <div class="meta"><span>${ic('calendar')}${m?.prazo ? fmtDT(m.prazo) : 'Sem prazo'}</span><span>${ic('clock')}Criada ${rel(it.created)}</span></div>
+        <div class="meta">${!isMine(it) ? `<span>${ic('users')}${esc(profName(it.owner))}</span>` : ''}<span>${ic('calendar')}${m?.prazo ? fmtDT(m.prazo) : 'Sem prazo'}</span><span>${ic('clock')}Criada ${rel(it.created)}</span></div>
         <div class="foot"><div class="big-count">${it.entregas.length}<small>entrega${it.entregas.length === 1 ? '' : 's'}</small></div><span class="badge ${st.k}">${ic(st.i)}${st.t}</span></div>
       </a>`; }).join('')}</div>` :
     `<div class="card"><div class="empty"><div class="empty-ic">${ic(S.list.length ? 'search' : 'folder')}</div><h3>${S.list.length ? 'Nada encontrado' : 'Nenhuma atividade ainda'}</h3><p>${S.list.length ? 'Tente outro termo ou filtro.' : 'Crie uma atividade para gerar o link de entrega da turma.'}</p>${S.list.length ? '' : `<a class="btn primary" href="#/nova">${ic('plus')} Nova atividade</a>`}</div></div>`}`);
@@ -1160,6 +1498,7 @@ function paintAtividades() {
   si.oninput = () => { S.filter = si.value; clearTimeout(si._t); si._t = setTimeout(() => { paintAtividades(); const n = $('#atvSearch'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 180); };
   if (prevFocus === 'atvSearch') { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
   $$('#atvSeg button').forEach(b => b.onclick = () => { S.atvFilter = b.dataset.k; paintAtividades(); });
+  const os = $('#ownSel'); if (os) os.onchange = () => { S.ownerFilter = os.value; paintAtividades(); };
 }
 
 /* ---------- FORMULÁRIO DE ATIVIDADE ---------- */
@@ -1175,7 +1514,7 @@ async function viewForm(editId) {
     <section class="card form-card"><h3>${ic('cap')} Informações da atividade</h3><p>O que os alunos verão ao abrir o link.</p>
       <div class="field"><label for="fTitulo">Título <span class="req">*</span></label><input class="input" id="fTitulo" required maxlength="120" placeholder="Ex.: Resenha crítica — Capítulo 3" value="${esc(a.titulo || '')}"></div>
       <div class="row"><div class="field"><label for="fTurma">Disciplina / Turma</label><input class="input" id="fTurma" maxlength="80" placeholder="Ex.: Sociologia · 2º ano B" value="${esc(a.turma || '')}"></div>
-      <div class="field"><label for="fPrazo">Prazo de entrega</label><input class="input" id="fPrazo" type="datetime-local" value="${toLocalInput(a.prazo)}"><span class="hint">Deixe vazio para não ter prazo.</span></div></div>
+      <div class="field"><label for="fPrazo">Prazo de entrega</label><input class="input" id="fPrazo" type="datetime-local" value="${toLocalInput(a.prazo)}"><span class="hint">Deixe vazio para não ter prazo. Os arquivos ficam disponíveis por ${RETENCAO_DIAS} dias após o prazo.</span></div></div>
       <div class="field" style="margin-bottom:0"><label for="fDesc">Instruções para os alunos</label><textarea class="input" id="fDesc" rows="5" maxlength="4000" placeholder="Descreva o que deve ser entregue, critérios de avaliação, formatação…">${esc(a.descricao || '')}</textarea></div>
     </section>
     <section class="card form-card"><h3>${ic('upload')} Formato da entrega</h3><p>Como os alunos vão enviar o trabalho.</p>
@@ -1210,19 +1549,20 @@ async function viewForm(editId) {
     const atv = {v:1, titulo, turma:$('#fTurma').value.trim(), descricao:$('#fDesc').value.trim(), prazo: prazoV ? new Date(prazoV).toISOString() : null,
       modo, formatos:[...fmts], maxMB:+$('#fMax').value, maxArquivos:+$('#fQtd').value,
       exigirMatricula:$('#fMat').checked, exigirEmail:$('#fEmail').checked, permitirReenvio:$('#fReenvio').checked, aceitarAtrasados:$('#fAtraso').checked, aberta:$('#fAberta').checked,
-      professor:S.cfg.name, criadoEm:a.criadoEm || new Date().toISOString(), atualizadoEm:new Date().toISOString()};
+      professor: editId ? (a.professor || S.cfg.name) : S.cfg.name, professorUser: editId ? (a.professorUser ?? itemOf(editId)?.owner ?? null) : S.cfg.user, criadoEm:a.criadoEm || new Date().toISOString(), atualizadoEm:new Date().toISOString()};
     const btn = $('#fSave'); busy(btn, true, editId ? 'Salvando…' : 'Criando…');
-    const description = `${TAG} ${atv.titulo}${atv.turma ? ' ¦ ' + atv.turma : ''}`;
+    const ownerTag = editId ? (itemOf(editId)?.owner ? `[EA:${itemOf(editId).owner}]` : (itemOf(editId) ? TAG : `[EA:${S.cfg.user}]`)) : `[EA:${S.cfg.user}]`;
+    const description = `${ownerTag} ${atv.titulo}${atv.turma ? ' ¦ ' + atv.turma : ''}`;
     try {
       let id = editId;
       if (editId) {
-        await gh('/gists/' + editId, {method:'PATCH', token:S.cfg.token, body:{description, files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}}}});
+        await gh('/gists/' + editId, {method:'PATCH', token:tokG(editId), body:{description, files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}}}});
         if (S.details[editId]) S.details[editId].etag = null;
         toast('Atividade atualizada', 'success');
       } else {
-        const r = await gh('/gists', {method:'POST', token:S.cfg.token, body:{description, public:false, files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}, 'avaliacoes.json':{content:'{}'}}}});
+        const r = await gh('/gists', {method:'POST', token:tokOf(S.cfg.conta), body:{description, public:false, files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}, 'avaliacoes.json':{content:'{}'}}}});
         id = r.data.id; S.seen[id] = []; store.set('seen', S.seen);
-        S.list.unshift({id, titulo:atv.titulo, turma:atv.turma, entregas:[], updated:r.data.updated_at, created:r.data.created_at});
+        S.list.unshift({id, conta:S.cfg.conta, owner:S.cfg.user, titulo:atv.titulo, turma:atv.turma, entregas:[], updated:r.data.updated_at, created:r.data.created_at});
         S.details[id] = {d:parseActivityGist(r.data), etag:null}; S.meta[id] = metaOf(S.details[id].d); store.set('meta', S.meta);
         S.justCreated = id;
         toast('Atividade criada! Agora é só compartilhar o link.', 'success', 4500);
@@ -1244,6 +1584,13 @@ async function viewDetail(id) {
   try { await refreshDetail(id, true); paintDetail(id); }
   catch (e) { if (!S.details[id]) { viewHTML(`<div class="card"><div class="empty"><div class="empty-ic">${ic('alert')}</div><h3>Não foi possível abrir</h3><p>${esc(friendlyError(e))}</p><a class="btn" href="#/atividades">Voltar</a></div></div>`); } }
 }
+function retNotice(d) {
+  const vivos = d.entregas.filter(temArquivos);
+  const prox = vivos.map(e => expiraEm(e, d.atv)).sort((x, y) => x - y)[0];
+  const quando = d.atv.prazo ? `até <b>${RETENCAO_DIAS} dias após o prazo</b> (${fmtDia(new Date(new Date(d.atv.prazo).getTime() + RETENCAO_DIAS * DIA))})` : `por <b>${RETENCAO_DIAS} dias após cada envio</b>`;
+  const urg = prox && diasAte(prox) <= 3;
+  return `<div class="callout ${urg ? 'danger' : 'warn'}" style="margin-top:16px">${ic('clock')}<div><b>Armazenamento temporário:</b> os arquivos dos alunos ficam na nuvem ${quando}; entregas atrasadas contam a partir do envio. Depois são apagados automaticamente — notas e devolutivas permanecem.${prox ? ` ${urg ? '<b>' : ''}Próxima remoção: ${fmtDia(prox)}.${urg ? '</b>' : ''} Use <b>Baixar tudo</b> para guardar uma cópia.` : ''}</div></div>`;
+}
 function paintDetail(id) {
   if (S.currentDetail !== id || !S.details[id]) return;
   const d = S.details[id].d, a = d.atv, st = atvStatus(a);
@@ -1258,7 +1605,7 @@ function paintDetail(id) {
     <section class="card hero">
       <div class="hero-top">
         <div style="min-width:0;flex:1"><div class="eyebrow">${esc(a.turma || 'Atividade')}</div><h2>${esc(a.titulo)}</h2>
-          <div class="hero-meta"><span class="badge ${st.k}">${ic(st.i)}${st.t}</span><span>${ic('calendar')}${a.prazo ? 'Prazo: ' + fmtDTlong(a.prazo) : 'Sem prazo definido'}</span><span>${ic('upload')}${a.modo === 'link' ? 'Entrega por link' : a.modo === 'ambos' ? 'Arquivo ou link' : 'Entrega de arquivo'}</span></div>
+          <div class="hero-meta"><span class="badge ${st.k}">${ic(st.i)}${st.t}</span><span>${ic('calendar')}${a.prazo ? 'Prazo: ' + fmtDTlong(a.prazo) : 'Sem prazo definido'}</span>${!isMine(itemOf(id)) ? `<span>${ic('users')}${esc(a.professor || profName(itemOf(id)?.owner))}</span>` : ''}<span>${ic('upload')}${a.modo === 'link' ? 'Entrega por link' : a.modo === 'ambos' ? 'Arquivo ou link' : 'Entrega de arquivo'}</span></div>
         </div>
         <div class="hero-actions">
           <button class="btn" id="dToggle">${ic(a.aberta === false ? 'unlock' : 'lock')} ${a.aberta === false ? 'Reabrir' : 'Encerrar'}</button>
@@ -1269,6 +1616,7 @@ function paintDetail(id) {
         </div>
       </div>
       ${a.descricao ? `<div class="desc">${esc(a.descricao)}</div>` : ''}
+      ${retNotice(d)}
       ${shareBox(id, a)}
     </section>
     <div class="stats s4x">
@@ -1289,7 +1637,7 @@ function paintDetail(id) {
             <div class="who">${avatar(e.nome)}<div style="min-width:0"><b>${esc(e.nome)}</b><small>${esc([e.matricula, e.email].filter(Boolean).join(' · ') || e.protocolo)}</small></div></div>
             <div class="c-date">${fmtDT(e.enviadoEm)}<small>${rel(e.enviadoEm)}</small></div>
             <div class="c-files">${cont || '—'}</div>
-            <div class="c-status">${e._substituida ? '<span class="badge muted">Substituída</span>' : stBadge(av.status)}${e.atrasado ? '<span class="badge warn">Atrasado</span>' : ''}${e._reenvio && !e._substituida ? '<span class="badge accent">Reenvio</span>' : ''}</div>
+            <div class="c-status">${e._substituida ? '<span class="badge muted">Substituída</span>' : stBadge(av.status)}${e.atrasado ? '<span class="badge warn">Atrasado</span>' : ''}${e._reenvio && !e._substituida ? '<span class="badge accent">Reenvio</span>' : ''}${retBadge(e, d.atv)}</div>
             <div class="c-nota">${av.nota != null && av.nota !== '' ? esc(String(av.nota).replace('.', ',')) : '<span class="muted">—</span>'}</div>
             <div class="c-go">${ic('chevron')}</div>
             <div class="m-only m-meta"><span>${ic('clock')}${rel(e.enviadoEm)}</span>${cont ? `<span>${cont}</span>` : ''}${av.nota != null && av.nota !== '' ? `<span>${ic('award')}Nota ${esc(String(av.nota).replace('.', ','))}</span>` : ''}</div>
@@ -1305,7 +1653,7 @@ function paintDetail(id) {
   $('#dToggle').onclick = async () => {
     const b = $('#dToggle'); busy(b, true);
     try { const atv = {...a, aberta: a.aberta === false, atualizadoEm:new Date().toISOString()};
-      await gh('/gists/' + id, {method:'PATCH', token:S.cfg.token, body:{files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}}}});
+      await gh('/gists/' + id, {method:'PATCH', token:tokG(id), body:{files:{'atividade.json':{content:JSON.stringify(atv, null, 2)}}}});
       d.atv = atv; S.details[id].etag = null; S.meta[id] = metaOf(d); store.set('meta', S.meta);
       toast(atv.aberta ? 'Atividade reaberta para entregas' : 'Atividade encerrada — novas entregas bloqueadas', 'success'); paintDetail(id);
     } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); }
@@ -1319,14 +1667,15 @@ function paintDetail(id) {
 
 /* ---------- entrega (professor) ---------- */
 const attCache = {};
-async function fetchAttachmentGist(gid) {
+async function fetchAttachmentGist(gid, token) {
   if (attCache[gid]) return attCache[gid];
-  const r = await gh('/gists/' + gid, {token:S.cfg.token});
+  const r = await gh('/gists/' + gid, {token});
   attCache[gid] = r.data; return r.data;
 }
 async function getFileBlob(e, i) {
   const f = e.arquivos[i];
-  const g = await fetchAttachmentGist(e.anexoGist);
+  if (!temArquivos(e)) throw new ApiError(410, 'Os arquivos desta entrega já foram removidos (retenção de ' + RETENCAO_DIAS + ' dias).');
+  const g = await fetchAttachmentGist(e.anexoGist, tokG(e._g));
   const keys = f.partes || [f.arquivo], parts = [];
   for (const k of keys) {
     const gf = g.files[k]; if (!gf) throw new ApiError(404, 'Arquivo não encontrado');
@@ -1348,9 +1697,12 @@ function openEntrega(id, eid) {
     </div>
     ${e.comentario ? `<div class="label" style="margin-top:14px">Comentário do aluno</div><div class="desc" style="margin-top:6px">${esc(e.comentario)}</div>` : ''}
     ${e.link ? `<div class="label" style="margin:16px 0 8px">Link enviado</div><div class="file-row"><div class="fitem f-ic" style="border:0;padding:0;background:none"><span class="f-ic">${ic('link')}</span></div><div class="t"><b class="selectable">${esc(e.link)}</b></div><a class="btn sm" href="${esc(/^https?:\/\//i.test(e.link) ? e.link : '#')}" target="_blank" rel="noopener noreferrer">${ic('external')} Abrir</a></div>` : ''}
-    ${(e.arquivos || []).length ? `<div class="label" style="margin:16px 0 8px">Arquivos (${e.arquivos.length})</div>${e.arquivos.map((f, i) => `
-      <div class="file-row"><span class="fitem" style="border:0;padding:0;background:none"><span class="f-ic">${esc(extOf(f.nome).slice(0, 4))}</span></span><div class="t"><b>${esc(f.nome)}</b><small>${fmtSize(f.tamanho)}</small></div>
-      <button class="btn sm icon" data-prev="${i}" title="Visualizar">${ic('eye')}</button><button class="btn sm" data-dl="${i}">${ic('download')}<span class="hide-m">Baixar</span></button></div>`).join('')}` : ''}
+    ${(e.arquivos || []).length ? `<div class="label" style="margin:16px 0 8px">Arquivos (${e.arquivos.length})</div>
+      ${e.removidoEm ? `<div class="callout info small" style="margin-bottom:8px">${ic('trash')}<div>Arquivos removidos da nuvem em ${fmtDia(e.removidoEm)}, conforme a política de retenção de ${RETENCAO_DIAS} dias. Os dados da entrega e a avaliação continuam registrados.</div></div>`
+        : `<div class="callout warn small" style="margin-bottom:8px">${ic('clock')}<div>Disponível para download até <b>${fmtDia(expiraEm(e, d.atv))}</b> (${Math.max(0, diasAte(expiraEm(e, d.atv)))} dia(s)). Depois disso os arquivos são apagados automaticamente.</div></div>`}
+      ${e.arquivos.map((f, i) => `
+      <div class="file-row"><span class="fitem" style="border:0;padding:0;background:none"><span class="f-ic">${esc(extOf(f.nome).slice(0, 4))}</span></span><div class="t"><b>${esc(f.nome)}</b><small>${fmtSize(f.tamanho)}${e.removidoEm ? ' · removido' : ''}</small></div>
+      ${e.removidoEm ? '' : `<button class="btn sm icon" data-prev="${i}" title="Visualizar">${ic('eye')}</button><button class="btn sm" data-dl="${i}">${ic('download')}<span class="hide-m">Baixar</span></button>`}</div>`).join('')}` : ''}
     <div class="divider"></div>
     <div class="label" style="margin-bottom:10px;display:flex;align-items:center;gap:8px">${ic('award')} Avaliação</div>
     <div class="field"><span class="label">Status</span><div class="seg" id="gSt">${Object.entries(STATUS).map(([k, s]) => `<button type="button" data-k="${k}" class="${(av.status || 'recebido') === k ? 'on' : ''}">${s.t}</button>`).join('')}</div></div>
@@ -1370,7 +1722,7 @@ function openEntrega(id, eid) {
         try {
           const {d: fresh} = await loadDetail(id, {force:true});
           const avs = {...fresh.aval, [eid]: {status:st, nota: raw === '' ? null : +raw, feedback:$('#gFb', m.el).value.trim(), em:new Date().toISOString()}};
-          await gh('/gists/' + id, {method:'PATCH', token:S.cfg.token, body:{files:{'avaliacoes.json':{content:JSON.stringify(avs, null, 2)}}}});
+          await gh('/gists/' + id, {method:'PATCH', token:tokG(id), body:{files:{'avaliacoes.json':{content:JSON.stringify(avs, null, 2)}}}});
           fresh.aval = avs; S.details[id].etag = null;
           toast('Avaliação salva — o aluno já pode consultar', 'success'); m.close(); paintDetail(id);
         } catch (er) { busy(b, false); toast(friendlyError(er), 'error'); }
@@ -1378,8 +1730,8 @@ function openEntrega(id, eid) {
       $('#eDel', m.el).onclick = async () => {
         if (!await confirmDlg(`Excluir a entrega de ${e.nome}? Os arquivos serão apagados permanentemente.`, {ok:'Excluir entrega', danger:true})) return;
         try {
-          await gh('/gists/' + id, {method:'PATCH', token:S.cfg.token, body:{files:{[e._file]: null}}});
-          if (e.anexoGist) await gh('/gists/' + e.anexoGist, {method:'DELETE', token:S.cfg.token}).catch(() => {});
+          await gh('/gists/' + id, {method:'PATCH', token:tokG(id), body:{files:{[e._file]: null}}});
+          if (e.anexoGist) await gh('/gists/' + e.anexoGist, {method:'DELETE', token:tokG(id)}).catch(() => {});
           S.details[id].etag = null; m.close(); toast('Entrega excluída', 'success'); await refreshDetail(id, true); paintDetail(id);
         } catch (er) { toast(friendlyError(er), 'error'); }
       };
@@ -1417,6 +1769,7 @@ async function downloadAll(d) {
       const folder = zip.folder(safeName(`${e.nome}${e.matricula ? ' - ' + e.matricula : ''}`));
       if (e.link) folder.file('link.url', `[InternetShortcut]\r\nURL=${e.link}\r\n`);
       if (e.comentario) folder.file('comentario.txt', e.comentario);
+      if (!temArquivos(e)) { if ((e.arquivos || []).length) folder.file('ARQUIVOS_REMOVIDOS.txt', `Arquivos removidos em ${fmtDia(e.removidoEm || Date.now())} (retenção de ${RETENCAO_DIAS} dias).`); continue; }
       for (let i = 0; i < (e.arquivos || []).length; i++) { try { folder.file(safeName(e.arquivos[i].nome), await getFileBlob(e, i)); } catch {} }
     }
     $('#zt', m.el) && ($('#zt', m.el).textContent = 'Compactando…');
@@ -1429,28 +1782,23 @@ async function deleteActivity(d) {
   const m = modal({title:'Excluindo…', size:'sm', body:`<div class="progress"><i id="dp"></i></div><p class="small muted" style="margin-top:10px">Removendo anexos e atividade do Gist.</p>`});
   try {
     const gids = d.entregas.map(e => e.anexoGist).filter(Boolean); let n = 0;
-    for (const g of gids) { await gh('/gists/' + g, {method:'DELETE', token:S.cfg.token}).catch(() => {}); n++; $('#dp', m.el) && ($('#dp', m.el).style.width = (n / (gids.length + 1) * 100) + '%'); }
-    await gh('/gists/' + d.id, {method:'DELETE', token:S.cfg.token});
+    for (const g of gids) { await gh('/gists/' + g, {method:'DELETE', token:tokG(d.id)}).catch(() => {}); n++; $('#dp', m.el) && ($('#dp', m.el).style.width = (n / (gids.length + 1) * 100) + '%'); }
+    await gh('/gists/' + d.id, {method:'DELETE', token:tokG(d.id)});
     delete S.details[d.id]; delete S.meta[d.id]; delete S.seen[d.id]; delete S.unreadBy[d.id];
     S.list = S.list.filter(x => x.id !== d.id); store.set('list', S.list); store.set('meta', S.meta); store.set('seen', S.seen); store.set('unreadBy', S.unreadBy); S.listEtag = null;
     m.close(); toast('Atividade excluída', 'success'); go('atividades');
   } catch (e) { m.close(); toast(friendlyError(e), 'error'); }
 }
 
-/* ---------- CONFIGURAÇÕES ---------- */
+/* ---------- CONFIGURAÇÕES (cada usuário) ---------- */
 function viewConfig() {
-  setPage({nav:'config', title:'Configurações', sub:'Conta, endereço do app, notificações e aparência'});
-  const c = S.cfg, theme = store.get('theme', 'auto');
+  setPage({nav:'config', title:'Configurações', sub:'Perfil, senha, alertas e aparência'});
+  const theme = store.get('theme', 'auto'), u = S.conf?.usuarios?.[S.sess.user] || {};
   const notif = 'Notification' in window ? Notification.permission : 'unsupported';
   viewHTML(`
-    <section class="card form-card"><h3>${ic('users')} Conta</h3><p>Conectado ao GitHub. Atividades e entregas ficam em Gists secretos desta conta.</p>
-      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><img src="${esc(c.avatar)}" alt="" style="width:52px;height:52px;border-radius:16px"><div style="flex:1;min-width:180px"><b style="display:block">${esc(c.name)}</b><span class="muted small">@${esc(c.login)} · <a href="https://gist.github.com/${esc(c.login)}" target="_blank" rel="noopener">ver meus gists</a></span></div>
-      <button class="btn" id="cName">${ic('edit')} Alterar nome</button><button class="btn danger-ghost" id="cOut">${ic('logout')} Desconectar</button></div>
-    </section>
-    <section class="card form-card"><h3>${ic('globe')} Endereço público do app</h3><p>É o endereço usado nos links enviados aos alunos. Publique o próprio app num Gist e ele passa a rodar via <b>gist.githack.com</b>.</p>
-      <div class="field"><label for="cUrl">URL do aplicativo</label><div class="input-group"><input class="input selectable" id="cUrl" placeholder="https://gist.githack.com/usuario/…/raw/index.html" value="${esc(c.appUrl || (appBase() || ''))}"><button class="btn" id="cUrlSave">Salvar</button></div>
-      <span class="hint">${c.appGist ? `Publicado no gist <a href="https://gist.github.com/${esc(c.login)}/${esc(c.appGist)}" target="_blank" rel="noopener">${esc(c.appGist.slice(0, 8))}…</a>. ` : ''}Também funciona com GitHub Pages ou qualquer hospedagem estática.</span></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="cPub">${ic('upload')} ${c.appGist ? 'Atualizar app publicado' : 'Publicar app no meu Gist'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a><button class="btn" id="cCopyUrl">${ic('copy')} Copiar endereço</button>` : ''}</div>
+    <section class="card form-card"><h3>${ic('users')} Meu perfil</h3><p>Seus dados são gerenciados pelo administrador do sistema.</p>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">${avatar(S.sess.nome, 'lg')}<div style="flex:1;min-width:180px"><b style="display:block;font-size:16px">${esc(S.sess.nome)}</b><span class="muted small">@${esc(S.sess.user)} · ${isAdmin() ? 'Administrador' : 'Professor(a)'}${u.email ? ' · ' + esc(u.email) : ''}</span></div>
+      <button class="btn" id="cPw">${ic('key')} Alterar senha</button><button class="btn danger-ghost" id="cOut">${ic('logout')} Sair</button></div>
     </section>
     <section class="card form-card"><h3>${ic('bell')} Tempo real e alertas</h3><p>O sistema verifica novas entregas automaticamente a cada poucos segundos.</p>
       <label class="toggle"><div><b>Notificações do sistema</b><small>${notif === 'granted' ? 'Ativadas neste dispositivo.' : notif === 'denied' ? 'Bloqueadas no navegador — libere nas permissões do site.' : notif === 'unsupported' ? 'Não suportado neste navegador.' : 'Receba alertas mesmo com a janela em segundo plano.'}</small></div>${notif === 'default' ? `<button class="btn sm primary" id="cNotif" type="button">Ativar</button>` : `<span class="badge ${notif === 'granted' ? 'success' : 'muted'}">${notif === 'granted' ? 'Ativo' : 'Indisponível'}</span>`}</label>
@@ -1459,20 +1807,273 @@ function viewConfig() {
     <section class="card form-card"><h3>${ic('sun')} Aparência e aplicativo</h3><p>Tema da interface e instalação como app.</p>
       <div class="field"><span class="label">Tema</span><div class="seg" id="cTheme">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Escuro']].map(([k, t]) => `<button data-k="${k}" class="${theme === k ? 'on' : ''}">${t}</button>`).join('')}</div></div>
       <button class="btn" onclick="installApp()" ${isStandalone() ? 'disabled' : ''}>${ic('phone')} ${isStandalone() ? 'Já está rodando como app' : 'Instalar como aplicativo'}</button>
-    </section>
-    <section class="card form-card"><h3>${ic('shield')} Segurança</h3>
-      <div class="callout warn">${ic('alert')}<div>Os links de entrega contêm seu token codificado, pois é ele que grava as entregas no Gist. Recomendações: use uma <b>conta GitHub exclusiva</b> para as aulas, token só com permissão <code>gist</code>, e compartilhe os links apenas com a turma. Se um link vazar, <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">revogue o token</a> e conecte um novo — os links antigos param de funcionar.</div></div>
     </section>`, 'wrap narrow');
-  $('#cName').onclick = () => modal({title:'Seu nome', size:'sm', body:`<div class="field" style="margin:0"><label for="nn">Nome exibido aos alunos</label><input class="input" id="nn" value="${esc(c.name)}"></div>`, footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="nnOk">Salvar</button>`,
-    onMount(m) { m.$('#nnOk').onclick = () => { const v = m.$('#nn').value.trim(); if (!v) return; S.cfg.name = v; saveCfg(); m.close(); $('#shell')?.remove(); route(); toast('Nome atualizado. Novas atividades usarão este nome.', 'success'); }; }});
-  $('#cOut').onclick = async () => { if (!await confirmDlg('Remover o token deste dispositivo? Suas atividades continuam salvas no GitHub e os links seguem funcionando.', {ok:'Desconectar', danger:true})) return;
-    store.del('cfg'); store.del('list'); store.del('meta'); store.del('seen'); store.del('unreadBy'); S.cfg = null; S.list = []; S.meta = {}; S.seen = {}; S.unreadBy = {}; S.details = {}; updateBadges(); go(''); route(); };
-  $('#cUrlSave').onclick = () => { const v = $('#cUrl').value.trim(); if (v && !/^https?:\/\//.test(v)) return toast('Informe uma URL começando com https://', 'error'); S.cfg.appUrl = v || undefined; saveCfg(); toast('Endereço salvo', 'success'); viewConfig(); };
-  $('#cPub').onclick = async () => { const b = $('#cPub'); busy(b, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Pode levar até 1 min para o endereço atualizar.', 'success', 5000); viewConfig(); } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); } };
-  const cu = $('#cCopyUrl'); if (cu) cu.onclick = () => copyText(c.appUrl, 'Endereço copiado');
-  const cn = $('#cNotif'); if (cn) cn.onclick = async () => { const p = await Notification.requestPermission(); if (p === 'granted') { sysNotify('Notificações ativadas', 'Você será avisado(a) a cada nova entrega.'); } viewConfig(); };
+  $('#cPw').onclick = changePasswordDlg;
+  $('#cOut').onclick = async () => { if (await confirmDlg('Sair da sua conta neste dispositivo?', {ok:'Sair'})) logout(); };
+  const cn = $('#cNotif'); if (cn) cn.onclick = async () => { const p = await Notification.requestPermission(); if (p === 'granted') sysNotify('Notificações ativadas', 'Você será avisado(a) a cada nova entrega.'); viewConfig(); };
   $('#cSom').onchange = e => { store.set('som', e.target.checked); if (e.target.checked) chime(); };
   $$('#cTheme button').forEach(b => b.onclick = () => { store.set('theme', b.dataset.k); applyTheme(); $$('#cTheme button').forEach(x => x.classList.toggle('on', x === b)); });
+}
+function changePasswordDlg() {
+  modal({title:'Alterar senha', size:'sm', body:`${pwField('pOld', 'Senha atual')}${pwField('pNew', 'Nova senha', 'mín. 8 caracteres', 'new-password')}${pwField('pNew2', 'Confirmar nova senha', '', 'new-password')}`,
+    footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="pOk">${ic('check')} Salvar</button>`,
+    onMount(m) {
+      bindEyes(m.el);
+      m.$('#pOk').onclick = async () => {
+        const nw = m.$('#pNew').value;
+        if (nw.length < 8) return toast('A nova senha precisa ter pelo menos 8 caracteres.', 'error');
+        if (nw !== m.$('#pNew2').value) return toast('As senhas não conferem.', 'error');
+        const b = m.$('#pOk'); busy(b, true, 'Salvando…');
+        try {
+          const u = S.conf.usuarios[S.sess.user]; const {chave} = chaveAtual(u, await fetchPerfil(u, S.cfg.token));
+          const {raw} = await unlockPriv(chave, m.$('#pOld').value);
+          await setOwnPassword(raw, nw); m.close(); toast('Senha alterada com sucesso', 'success');
+        } catch (e) { busy(b, false); toast(e.message === 'SENHA' ? 'Senha atual incorreta.' : friendlyError(e), 'error'); }
+      };
+    }});
+}
+
+/* ---------- ADMINISTRAÇÃO ---------- */
+const ADM_TABS = [['geral', 'Visão geral', 'home'], ['professores', 'Professores', 'users'], ['contas', 'Armazenamento', 'inbox'], ['sistema', 'Sistema', 'globe']];
+async function viewAdmin(tab) {
+  if (!ADM_TABS.some(t => t[0] === tab)) tab = 'geral';
+  setPage({nav:'admin', title:'Administração', sub:S.conf?.instituicao || 'Gestão da plataforma'});
+  const head = `<div class="toolbar"><div class="seg" id="admTabs">${ADM_TABS.map(([k, t, i]) => `<button data-k="${k}" class="${k === tab ? 'on' : ''}" style="display:inline-flex;gap:6px;align-items:center">${ic(i)}<span>${t}</span></button>`).join('')}</div></div>`;
+  viewHTML(head + `<div id="admBody"><div class="card card-pad"><div class="skel" style="height:220px"></div></div></div>`);
+  $$('#admTabs button').forEach(b => b.onclick = () => history.replaceState(null, '', '#/admin/' + b.dataset.k) || viewAdmin(b.dataset.k));
+  try { S.confEtag = null; await watchConfig(); } catch {}
+  if (!location.hash.startsWith('#/admin')) return;
+  if (tab === 'geral' || tab === 'professores') { try { if (!S.sync[S.sess.conta]) await syncList(); } catch {} }
+  ({geral:admGeral, professores:admProfs, contas:admContas, sistema:admSistema})[tab]();
+}
+const admBody = html => { const el = $('#admBody'); if (el) el.innerHTML = `<div class="view-enter">${html}</div>`; return el; };
+function userStats() {
+  const st = {};
+  S.list.forEach(it => { const k = it.owner || '__legado'; st[k] = st[k] || {atv:0, ent:0}; st[k].atv++; st[k].ent += it.entregas.length; });
+  return st;
+}
+async function rateOf(cid) { try { return (await gh('/rate_limit', {token:tokOf(cid)})).data.resources.core; } catch { return null; } }
+async function admGeral() {
+  const us = Object.entries(S.conf.usuarios), st = userStats();
+  const ativos = us.filter(([, u]) => u.ativo !== false).length;
+  const totAtv = S.list.length, totEnt = S.list.reduce((a, i) => a + i.entregas.length, 0);
+  const top = us.map(([k, u]) => ({k, u, s:st[k] || {atv:0, ent:0}})).sort((a, b) => b.s.ent - a.s.ent).slice(0, 6);
+  admBody(`
+    <div class="stats">
+      <div class="card stat s1"><div class="s-ic">${ic('users')}</div><div><b>${ativos}</b><span>Usuários ativos</span></div></div>
+      <div class="card stat s2"><div class="s-ic">${ic('folder')}</div><div><b>${totAtv}</b><span>Atividades no sistema</span></div></div>
+      <div class="card stat s3"><div class="s-ic">${ic('inbox')}</div><div><b>${totEnt}</b><span>Entregas recebidas</span></div></div>
+      <div class="card stat s4"><div class="s-ic">${ic('shield')}</div><div><b>${Object.keys(S.conf.contas).length}</b><span>Contas de armazenamento</span></div></div>
+    </div>
+    <div class="grid-2">
+      <section class="card"><div class="card-head"><h3>${ic('award')} Professores mais ativos</h3><a class="btn sm ghost" href="#/admin/professores">Gerenciar ${ic('chevron')}</a></div>
+        ${top.map(({k, u, s}) => `<div class="feed-item" data-u="${esc(k)}">${avatar(u.nome)}<div class="t"><b>${esc(u.nome)}</b><small>@${esc(k)} · ${s.atv} atividade${s.atv === 1 ? '' : 's'}</small></div><span class="badge info">${s.ent} entrega${s.ent === 1 ? '' : 's'}</span></div>`).join('')}
+      </section>
+      <section class="card"><div class="card-head"><h3>${ic('zap')} Capacidade das contas</h3><a class="btn sm ghost" href="#/admin/contas">Detalhes ${ic('chevron')}</a></div>
+        <div id="rates" class="card-pad" style="display:flex;flex-direction:column;gap:16px">${Object.keys(S.conf.contas).map(cid => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:6px"><b>@${esc(cid)}</b><span class="muted" data-rt="${esc(cid)}">verificando…</span></div><div class="meter"><i data-rm="${esc(cid)}" style="width:0"></i></div></div>`).join('')}</div>
+      </section>
+    </div>`);
+  $$('#admBody [data-u]').forEach(el => el.onclick = () => { S.ownerFilter = el.dataset.u; go('atividades'); });
+  for (const cid of Object.keys(S.conf.contas)) {
+    const r = await rateOf(cid); const t = $(`[data-rt="${CSS.escape(cid)}"]`), mtr = $(`[data-rm="${CSS.escape(cid)}"]`);
+    if (!t) return;
+    if (!r) { t.textContent = 'sem acesso'; continue; }
+    t.textContent = `${r.remaining.toLocaleString('pt-BR')} de ${r.limit.toLocaleString('pt-BR')} consultas/h livres`;
+    mtr.style.width = Math.round(r.remaining / r.limit * 100) + '%';
+    if (r.remaining / r.limit < .2) mtr.style.background = 'var(--warn)';
+  }
+}
+function admProfs() {
+  const st = userStats(), q = norm(S.admQ || '');
+  const us = Object.entries(S.conf.usuarios).filter(([k, u]) => !q || norm(k + ' ' + u.nome + ' ' + (u.email || '')).includes(q)).sort((a, b) => a[1].nome.localeCompare(b[1].nome));
+  admBody(`
+    <section class="card">
+      <div class="card-head"><h3>${ic('users')} Usuários <span class="count">${Object.keys(S.conf.usuarios).length}</span></h3>
+        <div style="display:flex;gap:8px;flex:1;justify-content:flex-end;flex-wrap:wrap"><div class="search" style="max-width:300px;min-width:180px">${ic('search')}<input class="input" id="admQ" style="height:38px" placeholder="Buscar nome, usuário…" value="${esc(S.admQ || '')}"></div>
+        <button class="btn primary" id="newProf">${ic('plus')} Novo professor</button></div></div>
+      <div class="u-head"><div>Nome</div><div>Perfil</div><div>Atividades</div><div>Entregas</div><div>Status</div><div></div></div>
+      ${us.map(([k, u]) => { const s = st[k] || {atv:0, ent:0}, me = k === S.sess.user;
+        return `<div class="u-row ${u.ativo === false ? 'off' : ''}">
+          <div class="who">${avatar(u.nome)}<div style="min-width:0"><b>${esc(u.nome)}${me ? ' <span class="badge muted" style="height:20px">você</span>' : ''}</b><small>@${esc(k)}${u.email ? ' · ' + esc(u.email) : ''}${Object.keys(S.conf.contas).length > 1 ? ' · conta ' + esc(u.conta) : ''}</small></div></div>
+          <div class="u-hide">${u.papel === 'admin' ? '<span class="badge accent">Administrador</span>' : '<span class="badge muted">Professor</span>'}</div>
+          <div class="u-hide"><b>${s.atv}</b></div><div class="u-hide"><b>${s.ent}</b></div>
+          <div>${u.ativo === false ? '<span class="badge danger">Desativado</span>' : u.trocarSenha ? '<span class="badge warn">Aguardando 1º acesso</span>' : '<span class="badge success">Ativo</span>'}</div>
+          <div class="u-actions">
+            <button class="btn sm icon ghost" data-act="ver" data-u="${esc(k)}" title="Ver atividades">${ic('folder')}</button>
+            ${me ? '' : `<button class="btn sm icon ghost" data-act="edit" data-u="${esc(k)}" title="Editar">${ic('edit')}</button>
+            <button class="btn sm icon ghost" data-act="reset" data-u="${esc(k)}" title="Redefinir senha">${ic('key')}</button>
+            <button class="btn sm icon ghost" data-act="toggle" data-u="${esc(k)}" title="${u.ativo === false ? 'Reativar' : 'Desativar'}">${ic(u.ativo === false ? 'unlock' : 'lock')}</button>
+            <button class="btn sm icon ghost" data-act="del" data-u="${esc(k)}" title="Excluir" style="color:var(--danger)">${ic('trash')}</button>`}
+          </div></div>`; }).join('') || '<div class="empty"><p>Nenhum usuário encontrado.</p></div>'}
+    </section>
+    ${st.__legado ? `<p class="small muted" style="margin-top:12px">${st.__legado.atv} atividade(s) da versão anterior estão associadas ao administrador.</p>` : ''}`);
+  const qi = $('#admQ'); qi.oninput = () => { S.admQ = qi.value; clearTimeout(qi._t); qi._t = setTimeout(() => { admProfs(); const n = $('#admQ'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 200); };
+  $('#newProf').onclick = () => profDialog();
+  $$('[data-act]').forEach(b => b.onclick = () => {
+    const k = b.dataset.u, u = S.conf.usuarios[k];
+    if (b.dataset.act === 'ver') { S.ownerFilter = k; go('atividades'); }
+    if (b.dataset.act === 'edit') profDialog(k);
+    if (b.dataset.act === 'reset') resetPw(k, u);
+    if (b.dataset.act === 'toggle') toggleUser(k, u);
+    if (b.dataset.act === 'del') deleteUser(k, u);
+  });
+}
+function leastLoadedConta() {
+  const cnt = Object.fromEntries(Object.keys(S.conf.contas).map(c => [c, 0]));
+  Object.values(S.conf.usuarios).forEach(u => { if (cnt[u.conta] != null) cnt[u.conta]++; });
+  return Object.entries(cnt).sort((a, b) => a[1] - b[1])[0][0];
+}
+function profDialog(editKey) {
+  const u = editKey ? S.conf.usuarios[editKey] : null, contas = Object.keys(S.conf.contas);
+  modal({title: u ? 'Editar usuário' : 'Novo professor', body:`
+    <div class="field"><label for="nNome">Nome completo <span class="req">*</span></label><input class="input" id="nNome" maxlength="80" value="${esc(u?.nome || '')}" placeholder="Ex.: Carlos Henrique Souza"></div>
+    <div class="row"><div class="field"><label for="nUser">Usuário <span class="req">*</span></label><input class="input" id="nUser" maxlength="30" autocapitalize="off" spellcheck="false" value="${esc(editKey || '')}" ${u ? 'disabled' : ''} placeholder="carlos.souza"><span class="hint">Usado para entrar. Não pode ser alterado depois.</span></div>
+    <div class="field"><label for="nEmail">E-mail <span class="muted">(opcional)</span></label><input class="input" id="nEmail" type="email" maxlength="120" value="${esc(u?.email || '')}" placeholder="professor@escola.edu.br"></div></div>
+    <div class="row"><div class="field"><label for="nPapel">Perfil de acesso</label><select class="input" id="nPapel"><option value="professor" ${u?.papel !== 'admin' ? 'selected' : ''}>Professor</option><option value="admin" ${u?.papel === 'admin' ? 'selected' : ''}>Administrador</option></select><span class="hint">Administradores gerenciam usuários e armazenamento.</span></div>
+    <div class="field" ${contas.length > 1 && !u ? '' : 'hidden'}><label for="nConta">Conta de armazenamento</label><select class="input" id="nConta">${contas.map(c => `<option value="${esc(c)}" ${(u?.conta || leastLoadedConta()) === c ? 'selected' : ''}>@${esc(c)}</option>`).join('')}</select><span class="hint">Sugerida a conta com menos professores.</span></div></div>
+    ${u ? '' : `<div class="callout info small">${ic('key')}<div>Uma <b>senha temporária</b> será gerada. No primeiro acesso, o professor cria a própria senha — nem você terá acesso a ela.</div></div>`}`,
+    footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="nOk">${ic('check')} ${u ? 'Salvar' : 'Cadastrar'}</button>`,
+    onMount(m) {
+      if (!u) m.$('#nNome').oninput = () => { if (!m.$('#nUser').dataset.t) m.$('#nUser').value = suggestUser(m.$('#nNome').value); };
+      if (!u) m.$('#nUser').oninput = () => { m.$('#nUser').dataset.t = 1; };
+      setTimeout(() => m.$('#nNome').focus(), 60);
+      m.$('#nOk').onclick = async () => {
+        const nome = m.$('#nNome').value.trim(), user = norm(m.$('#nUser').value), email = m.$('#nEmail').value.trim(), papel = m.$('#nPapel').value, conta = m.$('#nConta').value;
+        if (nome.length < 3) return toast('Informe o nome completo', 'error');
+        if (!u && !validUser(user)) return toast('Usuário: 3 a 30 caracteres (letras minúsculas, números, . - _)', 'error', 5000);
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast('E-mail inválido', 'error');
+        const b = m.$('#nOk'); busy(b, true, u ? 'Salvando…' : 'Criando acesso…');
+        try {
+          if (u) {
+            await saveConfig(async c => {
+              const x = c.usuarios[editKey]; x.nome = nome; x.email = email;
+              if (x.papel !== papel) {
+                x.papel = papel;
+                if (papel === 'admin') { const keep = x.cofres; x.cofres = {}; for (const cid of Object.keys(c.contas)) x.cofres[cid] = keep[cid] || {versao:c.contas[cid].versao, box: await seal(x.pub, tokOf(cid))}; }
+                else x.cofres = {[x.conta]: x.cofres[x.conta]};
+              }
+            });
+            m.close(); toast('Usuário atualizado', 'success'); admProfs();
+          } else {
+            const pw = genPw();
+            await saveConfig(async c => { if (c.usuarios[user]) throw new Error('Já existe um usuário com esse nome de acesso.'); c.usuarios[user] = await newUserRecord(c, {user, nome, email, papel, conta}, pw); });
+            m.close(); admProfs(); showCredentials(nome, user, pw, true);
+          }
+        } catch (e) { busy(b, false); toast(e.status ? friendlyError(e) : e.message, 'error', 5000); }
+      };
+    }});
+}
+function showCredentials(nome, user, pw, isNew) {
+  const url = appBase() || '(publique o app em Administração → Sistema)';
+  const msg = `Olá, ${nome.split(' ')[0]}! ${isNew ? 'Seu acesso à plataforma de entregas de trabalhos' : 'Sua senha da plataforma de entregas'}${S.conf.instituicao ? ' — ' + S.conf.instituicao : ''} ${isNew ? 'foi criado' : 'foi redefinida'}.\n\n🔗 Endereço: ${url}\n👤 Usuário: ${user}\n🔑 Senha temporária: ${pw}\n\nNo primeiro acesso você criará sua senha pessoal. Dica: instale o app no celular pelo menu do navegador.`;
+  modal({title: isNew ? 'Professor cadastrado' : 'Senha redefinida', body:`
+    <p style="color:var(--text-2);margin-bottom:16px">Envie estes dados ao professor. <b>A senha temporária não poderá ser vista novamente.</b></p>
+    <div class="info-list cred">
+      <div><span>Endereço</span><b class="selectable" style="word-break:break-all">${esc(url)}</b></div>
+      <div><span>Usuário</span><b class="selectable">${esc(user)}</b></div>
+      <div><span>Senha temporária</span><b class="selectable" style="font-family:var(--mono);font-size:16px;color:var(--primary)">${esc(pw)}</b></div>
+    </div>`,
+    footer:`<a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${ic('chat')} WhatsApp</a><button class="btn" id="crMail">${ic('mail')} E-mail</button><button class="btn primary" id="crCopy">${ic('copy')} Copiar mensagem</button>`,
+    onMount(m) {
+      m.$('#crCopy').onclick = () => copyText(msg, 'Mensagem de acesso copiada');
+      const em = S.conf.usuarios[user]?.email || '';
+      m.$('#crMail').onclick = () => { location.href = `mailto:${encodeURIComponent(em)}?subject=${encodeURIComponent('Acesso à plataforma de entregas')}&body=${encodeURIComponent(msg)}`; };
+    }});
+}
+async function resetPw(k, u) {
+  if (!await confirmDlg(`Gerar nova senha temporária para ${u.nome}? A senha atual deixará de funcionar e o professor será desconectado.`, {ok:'Redefinir senha'})) return;
+  try {
+    const pw = genPw();
+    await saveConfig(async c => {
+      const x = c.usuarios[k], keys = await makeKeys(pw);
+      x.pub = keys.pub; x.chave = keys.chave; x.trocarSenha = true;
+      for (const cid of Object.keys(x.cofres)) x.cofres[cid] = {versao:c.contas[cid].versao, box: await seal(keys.pub, tokOf(cid))};
+      x.sessaoRev = Date.now();
+    });
+    admProfs(); showCredentials(u.nome, k, pw, false);
+  } catch (e) { toast(friendlyError(e), 'error'); }
+}
+async function toggleUser(k, u) {
+  const off = u.ativo !== false;
+  if (off && !await confirmDlg(`Desativar o acesso de ${u.nome}? Ele será desconectado em até 1 minuto. As atividades e entregas dele continuam guardadas.`, {ok:'Desativar', danger:true})) return;
+  try { await saveConfig(c => { c.usuarios[k].ativo = !off; }); toast(off ? 'Acesso desativado' : 'Acesso reativado', 'success'); admProfs(); }
+  catch (e) { toast(friendlyError(e), 'error'); }
+}
+async function deleteUser(k, u) {
+  const s = userStats()[k] || {atv:0};
+  if (!await confirmDlg(`Excluir o usuário ${u.nome}?${s.atv ? ` As ${s.atv} atividade(s) dele continuarão disponíveis para os administradores.` : ''}`, {ok:'Excluir usuário', danger:true})) return;
+  try {
+    await saveConfig(c => { delete c.usuarios[k]; });
+    if (u.perfil) gh('/gists/' + u.perfil, {method:'DELETE', token:tokOf(u.conta)}).catch(() => {});
+    toast('Usuário excluído', 'success'); admProfs();
+  } catch (e) { toast(friendlyError(e), 'error'); }
+}
+function admContas() {
+  const contas = Object.entries(S.conf.contas), us = Object.values(S.conf.usuarios), st = userStats();
+  admBody(`
+    <div class="callout info" style="margin-bottom:18px">${ic('zap')}<div><b>Como escalar:</b> cada conta GitHub tem limites próprios (cerca de 500 envios de conteúdo por hora; cada 3 MB de arquivo de aluno conta como um envio). Para muitos professores, adicione contas extras e distribua os professores entre elas — novos cadastros vão automaticamente para a conta menos ocupada.</div></div>
+    <div class="atv-grid">${contas.map(([cid, c]) => { const n = us.filter(u => u.conta === cid).length; const atv = S.list.filter(i => i.conta === cid);
+      return `<div class="card conta-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="av" style="--h:${hue(cid)}">${ic('shield')}</span><div style="min-width:0"><b style="display:block">@${esc(cid)}</b><small class="muted">versão da credencial ${c.versao}</small></div></div>${c.principal ? '<span class="badge accent">Principal</span>' : ''}</div>
+        <div class="info-list" style="margin:0"><div><span>Professores</span><b>${n}</b></div><div><span>Atividades</span><b>${atv.length}</b></div><div><span>Entregas</span><b>${atv.reduce((a, i) => a + i.entregas.length, 0)}</b></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span class="muted">Consultas livres nesta hora</span><b data-rt="${esc(cid)}">…</b></div><div class="meter"><i data-rm="${esc(cid)}" style="width:0"></i></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" data-rot="${esc(cid)}">${ic('refresh')} Trocar token</button>${!c.principal && !n ? `<button class="btn sm danger-ghost" data-rmc="${esc(cid)}">${ic('trash')} Remover</button>` : ''}<a class="btn sm ghost" target="_blank" rel="noopener" href="https://gist.github.com/${esc(cid)}">${ic('external')} Gists</a></div>
+      </div>`; }).join('')}
+      <button class="card conta-card" id="addConta" style="align-items:center;justify-content:center;border-style:dashed;cursor:pointer;min-height:220px;color:var(--primary);font-weight:700;font:inherit">${ic('plus')}<span>Adicionar conta de armazenamento</span><small class="muted" style="font-weight:500">Outra conta GitHub com token <code>gist</code></small></button>
+    </div>`);
+  $('#addConta').onclick = () => tokenDialog();
+  $$('[data-rot]').forEach(b => b.onclick = () => tokenDialog(b.dataset.rot));
+  $$('[data-rmc]').forEach(b => b.onclick = async () => { const cid = b.dataset.rmc; if (!await confirmDlg(`Remover a conta @${cid} do sistema? Os gists continuam no GitHub.`, {ok:'Remover', danger:true})) return;
+    try { await saveConfig(c => { delete c.contas[cid]; Object.values(c.usuarios).forEach(u => { delete u.cofres[cid]; }); }); delete S.sess.contas[cid]; sessStore.set(S.sess); S.list = S.list.filter(i => i.conta !== cid); toast('Conta removida', 'success'); admContas(); } catch (e) { toast(friendlyError(e), 'error'); } });
+  contas.forEach(async ([cid]) => { const r = await rateOf(cid), t = $(`[data-rt="${CSS.escape(cid)}"]`), m = $(`[data-rm="${CSS.escape(cid)}"]`); if (!t) return;
+    if (!r) { t.textContent = 'token sem acesso'; t.style.color = 'var(--danger)'; return; } t.textContent = `${r.remaining.toLocaleString('pt-BR')} / ${r.limit.toLocaleString('pt-BR')}`; m.style.width = Math.round(r.remaining / r.limit * 100) + '%'; });
+}
+function tokenDialog(cid) {
+  modal({title: cid ? `Trocar token de @${cid}` : 'Adicionar conta de armazenamento', size:'sm', body:`
+    ${cid ? `<div class="callout warn small" style="margin-bottom:16px">${ic('alert')}<div>Use quando um token vazar ou expirar. Todos os usuários desta conta precisarão entrar novamente, e os <b>links de entrega já enviados aos alunos</b> desta conta deixam de funcionar — os professores devem copiar e reenviar os links atualizados.</div></div>` : `<p class="muted small" style="margin-bottom:14px">Crie (ou use) outra conta GitHub da instituição e gere um token clássico com <b>somente</b> a permissão <code>gist</code>.</p>`}
+    <div class="field" style="margin:0"><label for="tkIn">Token ${cid ? 'novo ' : ''}do GitHub</label><input class="input" id="tkIn" type="password" spellcheck="false" placeholder="ghp_…"><span class="hint"><a href="https://github.com/settings/tokens/new?scopes=gist&description=EntregaAcademica" target="_blank" rel="noopener">Gerar token</a></span></div>`,
+    footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="tkOk">${ic('check')} ${cid ? 'Trocar token' : 'Adicionar'}</button>`,
+    onMount(m) {
+      m.$('#tkOk').onclick = async () => {
+        const token = m.$('#tkIn').value.trim(); if (!token) return;
+        const b = m.$('#tkOk'); busy(b, true, 'Verificando…');
+        try {
+          const r = await gh('/user', {token}); const login = r.data.login;
+          const scopes = r.headers.get('X-OAuth-Scopes');
+          if (scopes && !scopes.split(',').map(s => s.trim()).includes('gist')) throw new Error('O token precisa da permissão "gist".');
+          if (cid && login !== cid) throw new Error(`Este token é da conta @${login}, não de @${cid}.`);
+          if (!cid && S.conf.contas[login]) throw new Error(`A conta @${login} já está cadastrada.`);
+          const target = cid || login; let versao;
+          await saveConfig(async c => {
+            if (cid) c.contas[cid].versao++; else c.contas[login] = {login, versao:1, criadoEm:new Date().toISOString()};
+            versao = c.contas[target].versao;
+            for (const u of Object.values(c.usuarios)) if (u.cofres[target] || (!cid && u.papel === 'admin')) u.cofres[target] = {versao, box: await seal(u.pub, token)};
+          });
+          S.sess.contas[target] = {token, login, versao}; sessStore.set(S.sess); applySession(S.sess);
+          m.close(); toast(cid ? 'Token trocado. Os usuários dessa conta entrarão novamente.' : `Conta @${login} adicionada`, 'success', 5000); admContas();
+        } catch (e) { busy(b, false); toast(e.status ? friendlyError(e) : e.message, 'error', 6000); }
+      };
+    }});
+}
+function admSistema() {
+  const c = S.conf;
+  admBody(`<div class="wrap narrow" style="margin:0">
+    <section class="card form-card"><h3>${ic('cap')} Instituição</h3><p>Nome exibido na tela de acesso e nas mensagens.</p>
+      <div class="input-group"><input class="input" id="sInst" maxlength="80" value="${esc(c.instituicao || '')}"><button class="btn" id="sInstOk">Salvar</button></div></section>
+    <section class="card form-card"><h3>${ic('globe')} Endereço do sistema</h3><p>É o endereço que professores usam para entrar e que vai nos links dos alunos. O app é publicado num Gist da conta principal e servido via gist.githack.com.</p>
+      ${c.appUrl ? `<div class="input-group" style="margin-bottom:12px"><input class="input selectable" readonly value="${esc(c.appUrl)}"><button class="btn" id="sCp">${ic('copy')}</button></div>` : `<div class="callout warn small" style="margin-bottom:12px">${ic('alert')}<div>O app ainda não foi publicado.</div></div>`}
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="sPub">${ic('upload')} ${c.appUrl ? 'Atualizar app publicado' : 'Publicar app'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a>` : ''}</div>
+      <p class="hint" style="margin-top:10px">Use “Atualizar” sempre que receber uma nova versão do arquivo do sistema: abra a nova versão logado como administrador e clique aqui. O endereço não muda.</p></section>
+    <section class="card form-card"><h3>${ic('clock')} Retenção de arquivos</h3><p>Política fixa da plataforma.</p>
+      <div class="callout info">${ic('trash')}<div>Os arquivos dos trabalhos ficam na nuvem por no máximo <b>${RETENCAO_DIAS} dias</b> após o prazo da atividade (ou após o envio, quando não há prazo ou a entrega é atrasada). A limpeza é feita automaticamente pelo app de professores e administradores enquanto estiverem em uso. Dados da entrega, notas e devolutivas são mantidos.</div></div></section>
+    <section class="card form-card"><h3>${ic('shield')} Segurança</h3>
+      <div class="callout warn">${ic('alert')}<div>
+        <p style="margin-bottom:8px">Os professores <b>nunca veem nem digitam o token</b>: ele fica cifrado na configuração e só é liberado com usuário e senha válidos. Desativar um usuário corta o acesso dele em até 1 minuto.</p>
+        <p style="margin-bottom:8px">Limite técnico de um sistema sem servidor: os <b>links de entrega dos alunos</b> carregam uma credencial codificada para poderem gravar o trabalho. Use somente contas GitHub exclusivas da instituição, com token restrito a <code>gist</code>.</p>
+        <p>Se suspeitar de vazamento (ou ao desligar alguém de confiança duvidosa), use <b>Armazenamento → Trocar token</b>.</p></div></div></section></div>`);
+  $('#sInstOk').onclick = async () => { const v = $('#sInst').value.trim(); if (!v) return; try { await saveConfig(c => { c.instituicao = v; }); toast('Nome salvo. Atualize o app publicado para exibir na tela de acesso.', 'success', 5000); } catch (e) { toast(friendlyError(e), 'error'); } };
+  const cp = $('#sCp'); if (cp) cp.onclick = () => copyText(c.appUrl, 'Endereço copiado');
+  $('#sPub').onclick = async () => { const b = $('#sPub'); busy(b, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Pode levar até 1 minuto para atualizar.', 'success', 5000); admSistema(); } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); } };
 }
 
 /* =========================================================
@@ -1512,6 +2113,7 @@ function paintStudent() {
       <div class="hero-meta"><span>${ic('cap')}${esc(a.professor || 'Professor(a)')}</span>${a.modo !== 'link' ? `<span>${ic('file')}${fmts ? (a.formatos.map(k => FORMATOS[k].label).join(', ')) : 'Qualquer formato'} · até ${a.maxMB} MB</span>` : `<span>${ic('link')}Entrega por link</span>`}</div>
       ${a.descricao ? `<div class="desc">${esc(a.descricao)}</div>` : ''}
       ${dl}
+      ${a.modo !== 'link' ? `<div class="callout info small" style="margin-top:14px">${ic('shield')}<div><b>Armazenamento temporário:</b> os arquivos enviados ficam guardados por até ${RETENCAO_DIAS} dias após ${a.prazo ? `o prazo (até ${fmtDia(new Date(new Date(a.prazo).getTime() + RETENCAO_DIAS * DIA))})` : 'o envio'} e depois são apagados automaticamente. Mantenha sempre uma cópia do seu trabalho.</div></div>` : ''}
       ${!open ? `<div class="callout danger" style="margin-top:14px">${ic('lock')}<div><b>Esta atividade não está recebendo entregas.</b><br>${a.aberta === false ? 'O professor encerrou o recebimento.' : 'O prazo terminou.'}</div></div>` : ''}
     </section>
     <div class="tabs"><button data-t="enviar" class="${Stu.tab === 'enviar' ? 'on' : ''}">${ic('upload')} Enviar trabalho</button><button data-t="minhas" class="${Stu.tab === 'minhas' ? 'on' : ''}">${ic('inbox')} Minhas entregas${mine.length ? ` (${mine.length})` : ''}</button></div>
@@ -1668,6 +2270,7 @@ function paintDone() {
     <p class="muted">${esc(a.professor || 'O professor')} já recebeu sua entrega${e.atrasado ? ' (registrada como atrasada)' : ''}.</p>
     <div class="proto selectable">${esc(e.protocolo)}<button class="btn icon sm ghost" id="cpP" title="Copiar">${ic('copy')}</button></div>
     <p class="small muted">Guarde este protocolo · ${fmtDTlong(e.enviadoEm)}</p>
+    ${(e.arquivos || []).length ? `<div class="callout info small" style="max-width:460px;margin:16px auto 0;text-align:left">${ic('clock')}<div>Seus arquivos ficam na nuvem até <b>${fmtDia(expiraEm(e, a))}</b> e depois são apagados automaticamente. Guarde uma cópia; nota e devolutiva continuam disponíveis aqui.</div></div>` : ''}
     <div class="info-list" style="text-align:left;max-width:420px;margin:20px auto 0">
       <div><span>Aluno</span><b>${esc(e.nome)}</b></div>
       ${e.matricula ? `<div><span>Matrícula</span><b>${esc(e.matricula)}</b></div>` : ''}
@@ -1688,6 +2291,7 @@ function paintMine() {
   const card = e => { const av = Stu.d.aval[e.id] || {};
     return `<div class="my-sub"><div class="top"><div><b style="font-family:var(--mono);letter-spacing:.05em">${esc(e.protocolo)}</b><div class="small muted">${esc(e.nome)} · ${fmtDT(e.enviadoEm)}</div></div>${e._substituida ? '<span class="badge muted">Substituída</span>' : stBadge(av.status)}</div>
       ${(e.arquivos || []).length || e.link ? `<div class="small muted" style="margin-top:8px">${[(e.arquivos || []).map(f => esc(f.nome)).join(', '), e.link ? 'Link enviado' : ''].filter(Boolean).join(' · ')}</div>` : ''}
+      ${(e.arquivos || []).length ? `<div class="small" style="margin-top:6px;display:flex;align-items:center;gap:6px;color:${e.removidoEm ? 'var(--muted)' : 'var(--warn)'}">${ic('clock')}${e.removidoEm ? `Arquivos removidos da nuvem em ${fmtDia(e.removidoEm)}` : `Arquivos guardados até ${fmtDia(expiraEm(e, Stu.d.atv))}`}</div>` : ''}
       ${av.nota != null && av.nota !== '' ? `<div style="margin-top:12px;display:flex;align-items:baseline;gap:8px"><span class="small muted">Nota</span><span class="nota-big">${esc(String(av.nota).replace('.', ','))}</span></div>` : ''}
       ${av.feedback ? `<div class="fb">${esc(av.feedback)}</div>` : ''}</div>`; };
   const found = mine.map(m => Stu.d.entregas.find(e => e.id === m.id)).filter(Boolean);
@@ -1710,9 +2314,12 @@ function route() {
   $$('#modal-root .modal-wrap').forEach(w => w.remove());
   if (parts[0] === 'entregar' && parts[1]) return startStudent(parts[1]);
   S.mode = 'prof'; document.title = APP;
-  if (!S.cfg) return viewSetup();
+  if (!BOOT) return viewInstall();
+  if (!S.sess) return viewLogin();
+  if (S.mustChange || S.sess.trocar) return viewTrocarSenha();
   ensureShell(); updateBadges();
   switch (parts[0]) {
+    case 'admin': return isAdmin() ? viewAdmin(parts[1] || 'geral') : go('painel');
     case 'atividades': return viewAtividades();
     case 'nova': return viewForm();
     case 'editar': return viewForm(parts[1]);
@@ -1734,8 +2341,14 @@ addEventListener('offline', () => { setLive(false); toast('Você está offline',
 window.installApp = installApp;
 applyTheme();
 setupPWA();
-if (S.cfg) startPolling();
-route();
+window.logout = logout; window.confirmDlg = confirmDlg;
+if (BOOT) { const ss = sessStore.get(); if (ss && ss.contas?.[ss.conta]) applySession(ss); }
+if (S.sess) {
+  startPolling();
+  $('#app').innerHTML = `<div style="height:100vh;display:grid;place-items:center">${ic('loader', 'spin')}</div>`;
+  if (location.hash.startsWith('#/entregar/')) route();
+  else watchConfig().catch(() => {}).finally(() => { if (S.sess) route(); });
+} else route();
 </script>
 </body>
 </html>
