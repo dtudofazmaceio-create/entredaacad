@@ -872,7 +872,7 @@ const S = {
 };
 const go = p => { location.hash = '#/' + p; };
 const firstName = () => (S.cfg?.name || '').split(' ')[0] || 'Professor(a)';
-function totalUnread() { return Object.values(S.unreadBy).reduce((a, b) => a + b, 0); }
+function totalUnread() { return S.sess ? mine().reduce((a, i) => a + unreadOf(i.id), 0) : 0; }
 function updateBadges() {
   const n = totalUnread();
   document.title = (n ? `(${n}) ` : '') + APP;
@@ -1027,7 +1027,7 @@ const mine = () => S.list.filter(isMine);
 const profName = u => S.conf?.usuarios?.[u]?.nome || u || 'Administrador';
 function clearLocalData() {
   ['list', 'meta', 'seen', 'unreadBy', 'conf', 'purged'].forEach(k => store.del(k));
-  Object.assign(S, {list:[], meta:{}, seen:{}, unreadBy:{}, details:{}, sync:{}, conf:null, cfg:null, sess:null, mustChange:null, ownerFilter:'__me'});
+  Object.assign(S, {perfil:null, perfilEtag:null, perfilSync:0, list:[], meta:{}, seen:{}, unreadBy:{}, details:{}, sync:{}, conf:null, cfg:null, sess:null, mustChange:null, ownerFilter:'__me'});
   updateBadges();
 }
 function logout(msg) {
@@ -1089,12 +1089,15 @@ async function doLogin(user, pw, keep) {
   const sess = {user, nome:u.nome, papel:u.papel, conta:u.conta, contas, keep, trocar, desde:Date.now()};
   clearLocalData(); sessStore.set(sess); S.conf = conf; store.set('conf', conf); applySession(sess);
   S.mustChange = trocar ? k.raw : null;
+  S.perfil = null; S.perfilEtag = null; loadPerfil().catch(() => {});
   return sess;
 }
 async function setOwnPassword(raw, newPw) {
   const chave = await wrapPriv(raw, newPw);
   const u = S.conf.usuarios[S.sess.user];
-  await gh('/gists/' + u.perfil, {method:'PATCH', token:tokOf(S.sess.conta), body:{files:{'perfil.json':{content:JSON.stringify({usuario:S.sess.user, chave}, null, 1)}}}});
+  let remote = {}; try { remote = JSON.parse((await gh('/gists/' + u.perfil, {token:tokOf(S.sess.conta)})).data.files['perfil.json'].content) || {}; } catch {}
+  await gh('/gists/' + u.perfil, {method:'PATCH', token:tokOf(S.sess.conta), body:{files:{'perfil.json':{content:JSON.stringify({...remote, usuario:S.sess.user, chave}, null, 1)}}}});
+  S.perfilEtag = null;
   S.sess.trocar = false; sessStore.set(S.sess); S.mustChange = null;
 }
 async function newUserRecord(conf, {user, nome, email, papel, conta}, pw, trocar = true) {
@@ -1118,6 +1121,97 @@ async function publishApp() {
   await saveConfig(c => { c.appGist = g.id; c.appUrl = url; });
   return url;
 }
+
+/* ---------- sincronização entre aparelhos (perfil.json do usuário) ---------- */
+// guarda: itens lidos por atividade, preferências (tema, som). A senha cifrada (chave) nunca é sobrescrita daqui.
+function lidoBase() { return S.perfil?.lidosBase || S.sess?.desde || Date.now(); }
+function unreadOf(id) {
+  const it = itemOf(id); if (!it || !isMine(it)) return 0;
+  const t = S.perfil?.lidos?.[id] ?? lidoBase();
+  return it.entregas.filter(n => tsFromName(n) > t).length;
+}
+function markRead(id) {
+  const it = itemOf(id); if (!S.perfil || !it) return;
+  const latest = Math.max(Date.now(), ...it.entregas.map(tsFromName));
+  if ((S.perfil.lidos?.[id] || 0) >= latest - 1000 && !unreadOf(id)) return;
+  S.perfil.lidos = {...(S.perfil.lidos || {}), [id]: latest};
+  updateBadges(); savePerfilSoon();
+}
+function setPref(k, v) {
+  store.set(k, v);
+  if (S.perfil) { S.perfil.prefs = {...(S.perfil.prefs || {}), [k]: v}; S.perfil._prefsDirty = true; savePerfilSoon(); }
+}
+function applyPrefs() {
+  const p = S.perfil?.prefs; if (!p || S.perfil._prefsDirty) return;
+  if (p.theme && p.theme !== store.get('theme', 'auto')) { store.set('theme', p.theme); applyTheme(); }
+  if (typeof p.som === 'boolean') store.set('som', p.som);
+}
+function mergePerfil(remote, local) {
+  const out = {...remote, lidos:{...(remote.lidos || {})}};
+  for (const [k, v] of Object.entries(local?.lidos || {})) out.lidos[k] = Math.max(out.lidos[k] || 0, v);
+  const bases = [remote.lidosBase, local?.lidosBase].filter(Boolean);
+  out.lidosBase = bases.length ? Math.min(...bases) : Date.now();
+  if (local?._prefsDirty) { out.prefs = {...(remote.prefs || {}), ...local.prefs}; out._prefsDirty = true; }
+  return out;
+}
+async function loadPerfil() {
+  const u = S.conf?.usuarios?.[S.sess?.user]; if (!u?.perfil) return false;
+  const r = await gh('/gists/' + u.perfil, {token:tokOf(S.sess.conta), etag:S.perfilEtag});
+  S.perfilSync = Date.now();
+  if (r.notModified) return false;
+  S.perfilEtag = r.etag;
+  let p = {}; try { p = JSON.parse(r.data.files['perfil.json'].content) || {}; } catch {}
+  const first = !p.lidosBase;
+  S.perfil = mergePerfil(p, S.perfil);
+  applyPrefs(); updateBadges();
+  if (first) savePerfilSoon();
+  if (S.onListChange) S.onListChange();
+  return true;
+}
+let perfilTimer;
+function savePerfilSoon() { clearTimeout(perfilTimer); perfilTimer = setTimeout(() => savePerfil().catch(() => {}), 3000); }
+async function savePerfil() {
+  const u = S.conf?.usuarios?.[S.sess?.user]; if (!u?.perfil || !S.perfil) return;
+  const tk = tokOf(S.sess.conta);
+  let remote = {}; try { remote = JSON.parse((await gh('/gists/' + u.perfil, {token:tk})).data.files['perfil.json'].content) || {}; } catch {}
+  const m = mergePerfil(remote, S.perfil); delete m._prefsDirty;
+  m.usuario = S.sess.user; m.chave = remote.chave ?? null; m.atualizadoEm = new Date().toISOString();
+  const {atualizadoEm: a1, ...cmpA} = m, {atualizadoEm: a2, ...cmpB} = remote;
+  if (JSON.stringify(cmpA) !== JSON.stringify(cmpB)) await gh('/gists/' + u.perfil, {method:'PATCH', token:tk, body:{files:{'perfil.json':{content:JSON.stringify(m, null, 1)}}}});
+  S.perfil = m; S.perfilEtag = null; S.perfilSync = Date.now();
+}
+// conectar um aparelho novo a um sistema já instalado (endereço publicado ou código de conexão)
+const bootCode = () => 'EA1:' + b64uEnc(new TextEncoder().encode(JSON.stringify({cfg:BOOT.cfg, owner:BOOT.owner, inst:S.conf?.instituicao || BOOT.inst || ''})));
+async function resolveBoot(txt) {
+  txt = txt.trim();
+  if (/^EA1:/i.test(txt)) { try { const b = JSON.parse(new TextDecoder().decode(b64uDec(txt.slice(4)))); if (b.cfg && b.owner) return b; } catch {} throw new Error('Código de conexão inválido.'); }
+  const ids = [...txt.matchAll(/[0-9a-f]{20,40}/gi)].map(m => m[0]);
+  if (!ids.length) throw new Error('Endereço não reconhecido. Cole o endereço completo do sistema ou o código de conexão.');
+  let g; try { g = (await gh('/gists/' + ids.at(-1))).data; } catch (e) { throw new Error(e.status === 404 ? 'Sistema não encontrado nesse endereço.' : friendlyError(e)); }
+  if (g.files['config.json']) return {cfg:g.id, owner:g.owner.login};
+  const f = g.files['index.html']; if (!f) throw new Error('Esse endereço não é de um sistema EntregaAcadêmica.');
+  const html = f.truncated ? await fetchRaw(f.raw_url) : f.content;
+  const m = html.match(/<script id="ea-boot" type="application\/json">([^<]*)<\/script>/);
+  let b = null; try { b = m && JSON.parse(m[1]); } catch {}
+  if (!b?.cfg) throw new Error('Esse endereço ainda não tem um sistema configurado.');
+  return b;
+}
+function connectDialog() {
+  modal({title:'Conectar a um sistema existente', body:`
+    <p style="color:var(--text-2);margin-bottom:16px">Use esta opção num aparelho novo. Depois é só entrar com seu usuário e senha — <b>nenhum token é necessário</b>, e todos os dados aparecem sincronizados.</p>
+    <div class="field" style="margin:0"><label for="cxIn">Endereço do sistema ou código de conexão</label><input class="input" id="cxIn" spellcheck="false" autocapitalize="off" placeholder="https://gist.githack.com/… ou EA1:…"><span class="hint">O administrador encontra os dois em Administração → Sistema.</span></div>`,
+    footer:`<button class="btn ghost" data-close>Cancelar</button><button class="btn primary" id="cxOk">${ic('link')} Conectar</button>`,
+    onMount(m) {
+      setTimeout(() => m.$('#cxIn').focus(), 60);
+      m.$('#cxIn').onkeydown = e => { if (e.key === 'Enter') m.$('#cxOk').click(); };
+      m.$('#cxOk').onclick = async () => {
+        const b = m.$('#cxOk'); busy(b, true, 'Conectando…');
+        try { const boot = await resolveBoot(m.$('#cxIn').value); BOOT = boot; store.set('boot', boot); m.close(); toast('Sistema encontrado! Entre com seu usuário e senha.', 'success'); route(); }
+        catch (e) { busy(b, false); toast(e.message, 'error', 6000); }
+      };
+    }});
+}
+window.connectDialog = connectDialog;
 
 /* ---------- sincronização (paginada + incremental) ---------- */
 function listItem(g, cid) {
@@ -1168,10 +1262,10 @@ async function syncList(force) {
 }
 function onNew(novas) {
   novas.forEach(n => {
-    if (S.currentDetail !== n.id || document.hidden) S.unreadBy[n.id] = (S.unreadBy[n.id] || 0) + 1;
     S.flash.add(n.file.replace(/^entrega_|\.json$/g, ''));
   });
-  store.set('unreadBy', S.unreadBy); updateBadges(); chime();
+  if (S.currentDetail && !document.hidden) markRead(S.currentDetail);
+  updateBadges(); chime();
   const one = novas[0], nome = one.nome ? one.nome + ' — ' : '';
   const msg = novas.length === 1 ? `Nova entrega: ${nome}${one.titulo}` : `${novas.length} novas entregas recebidas`;
   toast(msg, 'new', 5000);
@@ -1198,7 +1292,7 @@ async function refreshDetail(id, silent) {
   const novas = d.entregas.filter(e => !seen.includes(e._file));
   S.seen[id] = names; store.set('seen', S.seen);
   if (prev && novas.length && !silent && isMine(itemOf(id))) onNew(novas.map(e => ({id, titulo:d.atv.titulo, nome:e.nome, file:e._file})));
-  if (S.currentDetail === id) paintDetail(id);
+  if (S.currentDetail === id) { if (!document.hidden) markRead(id); paintDetail(id); }
 }
 let pollTimer;
 function startPolling() {
@@ -1217,6 +1311,7 @@ function startPolling() {
       syncList().then(ch => { if (ch && S.onListChange) S.onListChange(); }).catch(onPollErr);
     }
     if (now - S.lastConfPoll >= 60000) { S.lastConfPoll = now; watchConfig().catch(() => {}); }
+    if (now - (S.lastPerfilPoll || 0) >= (hidden ? 120000 : 45000)) { S.lastPerfilPoll = now; loadPerfil().catch(() => {}); }
     if (now - (S.lastSweep || 0) >= 600000 && S.list.length) { S.lastSweep = now; sweepRetention(); }
   }, 3000);
 }
@@ -1227,7 +1322,8 @@ function onPollErr(e) {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && S.mode === 'prof' && S.cfg) {
     S.lastListPoll = 0; S.lastDetailPoll = 0; S.lastConfPoll = 0;
-    if (S.currentDetail && S.unreadBy[S.currentDetail]) { delete S.unreadBy[S.currentDetail]; store.set('unreadBy', S.unreadBy); updateBadges(); }
+    if (S.currentDetail) markRead(S.currentDetail);
+    S.lastPerfilPoll = 0;
   }
 });
 
@@ -1289,7 +1385,11 @@ function viewInstall() {
   const legacy = store.get('cfg', null);
   $('#app').innerHTML = authLayout('Instale a plataforma da sua instituição em poucos minutos.',
     'Você será o administrador: configura o armazenamento (GitHub Gist) uma única vez e cadastra os professores. Eles apenas entram com usuário e senha — sem tokens, sem configurações.',
-    `<form class="card setup-card" id="insForm" autocomplete="off">
+    `<div style="width:100%;max-width:480px">
+    <div class="card" style="padding:18px 20px;margin-bottom:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px"><b style="display:block">Sua instituição já usa o sistema?</b><span class="muted small">Conecte este aparelho e entre com usuário e senha — sem token.</span></div>
+      <button class="btn primary" type="button" onclick="connectDialog()">${ic('link')} Conectar</button></div>
+    <form class="card setup-card" id="insForm" autocomplete="off" style="max-width:none">
       <div class="eyebrow">Instalação · Administrador</div>
       <h2>Configurar o sistema</h2>
       <p class="muted small">Esta etapa é feita apenas uma vez.</p>
@@ -1300,8 +1400,8 @@ function viewInstall() {
       <div class="field"><label for="iTok">Token do GitHub (conta principal) <span class="req">*</span></label><input class="input" id="iTok" type="password" required spellcheck="false" value="${esc(legacy?.token || '')}" placeholder="ghp_…"><span class="hint"><a href="https://github.com/settings/tokens/new?scopes=gist&description=EntregaAcademica" target="_blank" rel="noopener">Gerar token clássico</a> com <b>somente</b> a permissão <code>gist</code>, numa conta exclusiva da instituição.</span></div>
       ${legacy ? `<div class="callout info small" style="margin-bottom:16px">${ic('check')}<div>Encontramos a configuração da versão anterior. As atividades já criadas serão mantidas e ficarão com você.</div></div>` : ''}
       <button class="btn primary lg block" id="iBtn" type="submit">${ic('shield')} Instalar e publicar</button>
-      <p class="small muted" style="margin-top:14px;text-align:center">Já instalado? Abra o endereço publicado do sistema.</p>
-    </form>`);
+      <p class="small muted" style="margin-top:14px;text-align:center">Instale apenas uma vez por instituição.</p>
+    </form></div>`);
   bindEyes();
   $('#iNome').oninput = () => { if (!$('#iUser').dataset.touched) $('#iUser').value = suggestUser($('#iNome').value); };
   $('#iUser').oninput = () => { $('#iUser').dataset.touched = 1; };
@@ -1352,9 +1452,11 @@ function viewLogin() {
       <label class="check" style="margin-bottom:18px;background:none;border:0;padding:0"><input type="checkbox" id="lKeep" checked><span>Manter conectado neste dispositivo</span></label>
       <button class="btn primary lg block" id="lBtn" type="submit">${ic('key')} Entrar</button>
       <p class="small muted" style="margin-top:16px;text-align:center">Esqueceu a senha? Peça ao administrador para redefini-la.</p>
+      ${$('#ea-boot')?.textContent.includes('cfg') ? '' : `<p class="small" style="margin-top:6px;text-align:center"><a href="#" id="lSwitch">Conectar a outro sistema</a></p>`}
     </form>`);
   bindEyes();
   setTimeout(() => ($('#lUser').value ? $('#lPw') : $('#lUser')).focus(), 50);
+  const sw = $('#lSwitch'); if (sw) sw.onclick = e => { e.preventDefault(); connectDialog(); };
   $('#logForm').onsubmit = async e => {
     e.preventDefault();
     const btn = $('#lBtn'); busy(btn, true, 'Entrando…');
@@ -1449,7 +1551,7 @@ function paintPainel() {
       <section class="card">
         <div class="card-head"><h3>${ic('folder')} Atividades</h3><a class="btn sm ghost" href="#/atividades">Ver todas ${ic('chevron')}</a></div>
         ${[...L].sort((a, b) => new Date(b.updated) - new Date(a.updated)).slice(0, 5).map(it => {
-          const m = S.meta[it.id], st = atvStatus(m || {titulo:it.titulo}), un = S.unreadBy[it.id];
+          const m = S.meta[it.id], st = atvStatus(m || {titulo:it.titulo}), un = unreadOf(it.id);
           return `<a class="mini-atv" href="#/atividade/${it.id}"><div class="top"><b>${esc(it.titulo)}</b>${un ? `<span class="new-pill">+${un}</span>` : `<span class="badge ${st.k}">${st.t}</span>`}</div>
             <small>${esc(it.turma || 'Sem turma')} · ${it.entregas.length} entrega${it.entregas.length === 1 ? '' : 's'}${m?.prazo ? ' · prazo ' + fmtDT(m.prazo) : ''}</small></a>`;
         }).join('')}
@@ -1487,7 +1589,7 @@ function paintAtividades() {
       <a class="btn primary hide-m" href="#/nova">${ic('plus')} Nova atividade</a>
     </div>
     ${list.length ? `<div class="atv-grid">${list.map(it => {
-      const m = S.meta[it.id], st = atvStatus(m || {}), un = S.unreadBy[it.id];
+      const m = S.meta[it.id], st = atvStatus(m || {}), un = unreadOf(it.id);
       return `<a class="card atv-card" href="#/atividade/${it.id}">
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div style="min-width:0"><div class="eyebrow">${esc(it.turma || 'Sem turma')}</div><h3>${esc(it.titulo)}</h3></div>${un ? `<span class="new-pill">+${un} nova${un > 1 ? 's' : ''}</span>` : ''}</div>
         <div class="meta">${!isMine(it) ? `<span>${ic('users')}${esc(profName(it.owner))}</span>` : ''}<span>${ic('calendar')}${m?.prazo ? fmtDT(m.prazo) : 'Sem prazo'}</span><span>${ic('clock')}Criada ${rel(it.created)}</span></div>
@@ -1576,7 +1678,7 @@ async function viewForm(editId) {
 /* ---------- DETALHE DA ATIVIDADE ---------- */
 async function viewDetail(id) {
   S.currentDetail = id; S.lastDetailPoll = Date.now(); S.entFilter = '';
-  if (S.unreadBy[id]) { delete S.unreadBy[id]; store.set('unreadBy', S.unreadBy); updateBadges(); }
+  markRead(id);
   const it = S.list.find(x => x.id === id);
   setPage({nav:'atividades', title: it?.titulo || 'Atividade', sub: it?.turma || '', back:true});
   if (S.details[id]) paintDetail(id);
@@ -1807,12 +1909,15 @@ function viewConfig() {
     <section class="card form-card"><h3>${ic('sun')} Aparência e aplicativo</h3><p>Tema da interface e instalação como app.</p>
       <div class="field"><span class="label">Tema</span><div class="seg" id="cTheme">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Escuro']].map(([k, t]) => `<button data-k="${k}" class="${theme === k ? 'on' : ''}">${t}</button>`).join('')}</div></div>
       <button class="btn" onclick="installApp()" ${isStandalone() ? 'disabled' : ''}>${ic('phone')} ${isStandalone() ? 'Já está rodando como app' : 'Instalar como aplicativo'}</button>
+    </section>
+    <section class="card form-card"><h3>${ic('refresh')} Seus aparelhos</h3><p>Entre com o mesmo usuário e senha em qualquer celular ou computador: atividades, entregas, avaliações, itens lidos, tema e som ficam sincronizados automaticamente.</p>
+      <div class="callout info small">${ic('check')}<div>Última sincronização do perfil: <b>${S.perfilSync ? rel(S.perfilSync) : 'aguardando'}</b>. As notificações do sistema precisam ser ativadas em cada aparelho.</div></div>
     </section>`, 'wrap narrow');
   $('#cPw').onclick = changePasswordDlg;
   $('#cOut').onclick = async () => { if (await confirmDlg('Sair da sua conta neste dispositivo?', {ok:'Sair'})) logout(); };
   const cn = $('#cNotif'); if (cn) cn.onclick = async () => { const p = await Notification.requestPermission(); if (p === 'granted') sysNotify('Notificações ativadas', 'Você será avisado(a) a cada nova entrega.'); viewConfig(); };
-  $('#cSom').onchange = e => { store.set('som', e.target.checked); if (e.target.checked) chime(); };
-  $$('#cTheme button').forEach(b => b.onclick = () => { store.set('theme', b.dataset.k); applyTheme(); $$('#cTheme button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('#cSom').onchange = e => { setPref('som', e.target.checked); if (e.target.checked) chime(); };
+  $$('#cTheme button').forEach(b => b.onclick = () => { setPref('theme', b.dataset.k); applyTheme(); $$('#cTheme button').forEach(x => x.classList.toggle('on', x === b)); });
 }
 function changePasswordDlg() {
   modal({title:'Alterar senha', size:'sm', body:`${pwField('pOld', 'Senha atual')}${pwField('pNew', 'Nova senha', 'mín. 8 caracteres', 'new-password')}${pwField('pNew2', 'Confirmar nova senha', '', 'new-password')}`,
@@ -2064,6 +2169,9 @@ function admSistema() {
       ${c.appUrl ? `<div class="input-group" style="margin-bottom:12px"><input class="input selectable" readonly value="${esc(c.appUrl)}"><button class="btn" id="sCp">${ic('copy')}</button></div>` : `<div class="callout warn small" style="margin-bottom:12px">${ic('alert')}<div>O app ainda não foi publicado.</div></div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="sPub">${ic('upload')} ${c.appUrl ? 'Atualizar app publicado' : 'Publicar app'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a>` : ''}</div>
       <p class="hint" style="margin-top:10px">Use “Atualizar” sempre que receber uma nova versão do arquivo do sistema: abra a nova versão logado como administrador e clique aqui. O endereço não muda.</p></section>
+    <section class="card form-card"><h3>${ic('phone')} Acesso em outros aparelhos</h3><p>Administradores e professores entram de qualquer aparelho só com usuário e senha — os tokens ficam cifrados na configuração e são liberados no login. Tudo é sincronizado: atividades, entregas, avaliações, itens lidos e preferências.</p>
+      <div class="field"><span class="label">Endereço do sistema (recomendado)</span><span class="hint">Abra no novo aparelho e entre normalmente.</span></div>
+      <div class="field" style="margin-bottom:0"><label for="sCode">Código de conexão</label><div class="input-group"><input class="input selectable" id="sCode" readonly value="${esc(bootCode())}" style="font-family:var(--mono);font-size:12.5px"><button class="btn" id="sCodeCp">${ic('copy')}</button></div><span class="hint">Use se abrir o arquivo do sistema localmente num aparelho novo: “Conectar a um sistema existente” → cole o código. Ele não contém senhas nem tokens.</span></div></section>
     <section class="card form-card"><h3>${ic('clock')} Retenção de arquivos</h3><p>Política fixa da plataforma.</p>
       <div class="callout info">${ic('trash')}<div>Os arquivos dos trabalhos ficam na nuvem por no máximo <b>${RETENCAO_DIAS} dias</b> após o prazo da atividade (ou após o envio, quando não há prazo ou a entrega é atrasada). A limpeza é feita automaticamente pelo app de professores e administradores enquanto estiverem em uso. Dados da entrega, notas e devolutivas são mantidos.</div></div></section>
     <section class="card form-card"><h3>${ic('shield')} Segurança</h3>
@@ -2073,6 +2181,7 @@ function admSistema() {
         <p>Se suspeitar de vazamento (ou ao desligar alguém de confiança duvidosa), use <b>Armazenamento → Trocar token</b>.</p></div></div></section></div>`);
   $('#sInstOk').onclick = async () => { const v = $('#sInst').value.trim(); if (!v) return; try { await saveConfig(c => { c.instituicao = v; }); toast('Nome salvo. Atualize o app publicado para exibir na tela de acesso.', 'success', 5000); } catch (e) { toast(friendlyError(e), 'error'); } };
   const cp = $('#sCp'); if (cp) cp.onclick = () => copyText(c.appUrl, 'Endereço copiado');
+  $('#sCodeCp').onclick = () => copyText(bootCode(), 'Código de conexão copiado');
   $('#sPub').onclick = async () => { const b = $('#sPub'); busy(b, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Pode levar até 1 minuto para atualizar.', 'success', 5000); admSistema(); } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); } };
 }
 
@@ -2347,7 +2456,7 @@ if (S.sess) {
   startPolling();
   $('#app').innerHTML = `<div style="height:100vh;display:grid;place-items:center">${ic('loader', 'spin')}</div>`;
   if (location.hash.startsWith('#/entregar/')) route();
-  else watchConfig().catch(() => {}).finally(() => { if (S.sess) route(); });
+  else watchConfig().catch(() => {}).then(() => S.sess && loadPerfil()).catch(() => {}).finally(() => { if (S.sess) route(); });
 } else route();
 </script>
 </body>
