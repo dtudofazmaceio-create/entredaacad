@@ -1089,7 +1089,7 @@ async function doLogin(user, pw, keep) {
   const sess = {user, nome:u.nome, papel:u.papel, conta:u.conta, contas, keep, trocar, desde:Date.now()};
   clearLocalData(); sessStore.set(sess); S.conf = conf; store.set('conf', conf); applySession(sess);
   S.mustChange = trocar ? k.raw : null;
-  S.perfil = null; S.perfilEtag = null; loadPerfil().catch(() => {});
+  S.perfil = null; S.perfilEtag = null; loadPerfil().catch(() => {}); ensureLinkKeys().catch(() => {});
   return sess;
 }
 async function setOwnPassword(raw, newPw) {
@@ -1327,13 +1327,53 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+/* ---------- link curto ---------- */
+// link do aluno = endereço + #/e/<código de 23 caracteres> (conta + id da atividade).
+// A credencial de envio de cada conta fica (codificada) na configuração central e é buscada pela página do aluno.
+const linkKey = token => encodeLink({t:token});
+function shortCode(id) {
+  const it = itemOf(id), c = S.conf?.contas?.[it?.conta || S.cfg.conta];
+  if (!c?.lk || typeof c.idx !== 'number' || !/^[0-9a-f]{32}$/.test(id)) return null;
+  const bytes = new Uint8Array(17); bytes[0] = c.idx;
+  for (let i = 0; i < 16; i++) bytes[i + 1] = parseInt(id.slice(i * 2, i * 2 + 2), 16);
+  return b64uEnc(bytes);
+}
+function parseShort(code) {
+  const b = b64uDec(code); if (b.length !== 17) throw new Error('code');
+  return {idx:b[0], g:[...b.slice(1)].map(x => x.toString(16).padStart(2, '0')).join('')};
+}
+async function configForStudent() {
+  const k = 'ea:stucfg:' + BOOT.cfg;
+  try { const c = JSON.parse(sessionStorage.getItem(k) || 'null'); if (c && Date.now() - c.t < 300000) return c.conf; } catch {}
+  let conf;
+  try { conf = JSON.parse(await fetchRaw(`https://gist.githubusercontent.com/${BOOT.owner}/${BOOT.cfg}/raw/config.json`)); }
+  catch { conf = await confFromGist((await gh('/gists/' + BOOT.cfg)).data); }
+  try { sessionStorage.setItem(k, JSON.stringify({t:Date.now(), conf:{contas:conf.contas}})); } catch {}
+  return conf;
+}
+// administradores completam índice e credencial de envio das contas (instalações anteriores)
+async function ensureLinkKeys() {
+  if (!isAdmin() || !S.conf?.contas) return;
+  const falta = Object.entries(S.conf.contas).filter(([cid, c]) => (!c.lk || typeof c.idx !== 'number') && S.sess.contas[cid]);
+  if (!falta.length) return;
+  await saveConfig(c => {
+    let next = Math.max(-1, ...Object.values(c.contas).map(x => typeof x.idx === 'number' ? x.idx : -1)) + 1;
+    const ordem = Object.keys(c.contas).sort((a, b) => (c.contas[b].principal ? 1 : 0) - (c.contas[a].principal ? 1 : 0));
+    for (const cid of ordem) { const x = c.contas[cid]; if (typeof x.idx !== 'number') x.idx = next++; if (!x.lk && S.sess.contas[cid]) x.lk = linkKey(S.sess.contas[cid].token); }
+  });
+}
+
 /* ---------- link de compartilhamento ---------- */
 function appBase() {
   if (S.conf?.appUrl) return S.conf.appUrl.split('#')[0];
   if (/^https?:/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname)) return location.href.split('#')[0];
   return null;
 }
-function shareLink(id) { const b = appBase(); return b ? `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}` : null; }
+function shareLink(id) {
+  const b = (S.conf?.linkBase || appBase() || '').replace(/#.*$/, ''); if (!b) return null;
+  const code = shortCode(id);
+  return code ? `${b}#/e/${code}` : `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}`;
+}
 function shareMsg(a, link) {
   return `📚 *${a.titulo}*${a.turma ? ` — ${a.turma}` : ''}\n${a.prazo ? `🗓️ Prazo: ${fmtDTlong(a.prazo)}\n` : ''}Envie seu trabalho pelo link:\n${link}`;
 }
@@ -1419,7 +1459,7 @@ function viewInstall() {
       const login = r.data.login;
       busy(btn, true, 'Criando chaves de segurança…');
       const now = new Date().toISOString();
-      const conf = {v:2, instituicao:inst, criadoEm:now, contas:{[login]:{login, versao:1, principal:true, criadoEm:now}}, usuarios:{}};
+      const conf = {v:2, instituicao:inst, criadoEm:now, contas:{[login]:{login, versao:1, principal:true, idx:0, lk:linkKey(token), criadoEm:now}}, usuarios:{}};
       S.sess = {contas:{[login]:{token, login, versao:1}}}; S.cfg = {token};
       conf.usuarios[user] = await newUserRecord(conf, {user, nome, email:'', papel:'admin', conta:login}, pw, false);
       busy(btn, true, 'Salvando configuração…');
@@ -2150,7 +2190,8 @@ function tokenDialog(cid) {
           if (!cid && S.conf.contas[login]) throw new Error(`A conta @${login} já está cadastrada.`);
           const target = cid || login; let versao;
           await saveConfig(async c => {
-            if (cid) c.contas[cid].versao++; else c.contas[login] = {login, versao:1, criadoEm:new Date().toISOString()};
+            if (cid) c.contas[cid].versao++; else c.contas[login] = {login, versao:1, idx:Math.max(-1, ...Object.values(c.contas).map(x => typeof x.idx === 'number' ? x.idx : -1)) + 1, criadoEm:new Date().toISOString()};
+            c.contas[target].lk = linkKey(token);
             versao = c.contas[target].versao;
             for (const u of Object.values(c.usuarios)) if (u.cofres[target] || (!cid && u.papel === 'admin')) u.cofres[target] = {versao, box: await seal(u.pub, token)};
           });
@@ -2169,6 +2210,9 @@ function admSistema() {
       ${c.appUrl ? `<div class="input-group" style="margin-bottom:12px"><input class="input selectable" readonly value="${esc(c.appUrl)}"><button class="btn" id="sCp">${ic('copy')}</button></div>` : `<div class="callout warn small" style="margin-bottom:12px">${ic('alert')}<div>O app ainda não foi publicado.</div></div>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="sPub">${ic('upload')} ${c.appUrl ? 'Atualizar app publicado' : 'Publicar app'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a>` : ''}</div>
       <p class="hint" style="margin-top:10px">Use “Atualizar” sempre que receber uma nova versão do arquivo do sistema: abra a nova versão logado como administrador e clique aqui. O endereço não muda.</p></section>
+    <section class="card form-card"><h3>${ic('link')} Endereço curto para os links dos alunos <span class="badge muted">opcional</span></h3><p>Os links já saem curtos (endereço do sistema + código de 23 caracteres). Para encurtar ainda mais, use um endereço da escola que <b>redirecione</b> para o endereço do sistema — por exemplo <code>escola.edu.br/entregas</code>. Os professores passam a copiar links como <code>escola.edu.br/entregas#/e/AbC…</code>.</p>
+      <div class="input-group"><input class="input" id="sLinkBase" placeholder="https://escola.edu.br/entregas" value="${esc(c.linkBase || '')}"><button class="btn" id="sLinkOk">Salvar</button></div>
+      <p class="hint" style="margin-top:8px">Configure o redirecionamento no site da escola ou no painel do seu domínio apontando para: <span class="selectable">${esc(c.appUrl || '—')}</span>. Deixe vazio para usar o endereço padrão.</p></section>
     <section class="card form-card"><h3>${ic('phone')} Acesso em outros aparelhos</h3><p>Administradores e professores entram de qualquer aparelho só com usuário e senha — os tokens ficam cifrados na configuração e são liberados no login. Tudo é sincronizado: atividades, entregas, avaliações, itens lidos e preferências.</p>
       <div class="field"><span class="label">Endereço do sistema (recomendado)</span><span class="hint">Abra no novo aparelho e entre normalmente.</span></div>
       <div class="field" style="margin-bottom:0"><label for="sCode">Código de conexão</label><div class="input-group"><input class="input selectable" id="sCode" readonly value="${esc(bootCode())}" style="font-family:var(--mono);font-size:12.5px"><button class="btn" id="sCodeCp">${ic('copy')}</button></div><span class="hint">Use se abrir o arquivo do sistema localmente num aparelho novo: “Conectar a um sistema existente” → cole o código. Ele não contém senhas nem tokens.</span></div></section>
@@ -2182,6 +2226,12 @@ function admSistema() {
   $('#sInstOk').onclick = async () => { const v = $('#sInst').value.trim(); if (!v) return; try { await saveConfig(c => { c.instituicao = v; }); toast('Nome salvo. Atualize o app publicado para exibir na tela de acesso.', 'success', 5000); } catch (e) { toast(friendlyError(e), 'error'); } };
   const cp = $('#sCp'); if (cp) cp.onclick = () => copyText(c.appUrl, 'Endereço copiado');
   $('#sCodeCp').onclick = () => copyText(bootCode(), 'Código de conexão copiado');
+  $('#sLinkOk').onclick = async () => {
+    const v = $('#sLinkBase').value.trim().replace(/[#/]+$/, '');
+    if (v && !/^https?:\/\/[^\s]+\.[^\s]+/.test(v)) return toast('Informe um endereço começando com https://', 'error');
+    try { await saveConfig(c => { if (v) c.linkBase = v; else delete c.linkBase; }); toast(v ? 'Endereço curto salvo. Os novos links já usam esse endereço.' : 'Voltando ao endereço padrão.', 'success', 5000); admSistema(); }
+    catch (e) { toast(friendlyError(e), 'error'); }
+  };
   $('#sPub').onclick = async () => { const b = $('#sPub'); busy(b, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Pode levar até 1 minuto para atualizar.', 'success', 5000); admSistema(); } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); } };
 }
 
@@ -2193,10 +2243,23 @@ function stuShell(inner) {
   $('#app').innerHTML = `<div class="stu"><header class="stu-bar">${LOGO}<div style="flex:1;min-width:0"><b>${APP}</b><small>Envio de trabalho</small></div><button class="btn icon ghost install-btn" style="color:#fff" ${deferredPrompt ? '' : 'hidden'} onclick="installApp()" title="Instalar app">${ic('phone')}</button></header><main class="stu-main" id="stuMain">${inner}</main></div>`;
 }
 function stuError(t, p) { stuShell(`<div class="card"><div class="empty"><div class="empty-ic" style="background:var(--danger-50);color:var(--danger)">${ic('alert')}</div><h3>${esc(t)}</h3><p>${esc(p)}</p><button class="btn" onclick="location.reload()">${ic('refresh')} Tentar novamente</button></div></div>`); }
-async function startStudent(payload) {
+async function startStudentShort(code) {
   S.mode = 'stu'; S.currentDetail = null; clearInterval(Stu.timer);
-  let info;
-  try { info = decodeLink(payload); if (!info.g || !info.t) throw 0; } catch { return stuError('Link inválido', 'Verifique se o link foi copiado por completo ou peça um novo ao professor.'); }
+  let ref; try { ref = parseShort(code); } catch { return stuError('Link inválido', 'Verifique se o link foi copiado por completo ou peça um novo ao professor.'); }
+  if (Stu.d?.id === ref.g && Stu.info) return startStudent(null, Stu.info);
+  if (!BOOT) return stuError('Link inválido', 'Abra o link exatamente como foi enviado pelo professor.');
+  stuShell(`<div class="card stu-hero"><div class="skel" style="height:16px;width:30%;margin-bottom:12px"></div><div class="skel" style="height:30px;width:80%;margin-bottom:16px"></div><div class="skel" style="height:70px"></div></div><div class="card card-pad"><div class="skel" style="height:260px"></div></div>`);
+  try {
+    const conf = await configForStudent();
+    const c = Object.values(conf.contas || {}).find(x => x.idx === ref.idx);
+    if (!c?.lk) throw new Error('conta');
+    return startStudent(null, {g:ref.g, t:decodeLink(c.lk).t});
+  } catch (e) { return stuError(e.message === 'conta' ? 'Link desativado' : 'Não foi possível abrir a atividade', e.message === 'conta' ? 'Peça o link atualizado ao professor.' : friendlyError(e)); }
+}
+async function startStudent(payload, pre) {
+  S.mode = 'stu'; S.currentDetail = null; clearInterval(Stu.timer);
+  let info = pre;
+  if (!info) { try { info = decodeLink(payload); if (!info.g || !info.t) throw 0; } catch { return stuError('Link inválido', 'Verifique se o link foi copiado por completo ou peça um novo ao professor.'); } }
   Stu.info = info;
   if (!Stu.d || Stu.d.id !== info.g) {
     stuShell(`<div class="card stu-hero"><div class="skel" style="height:16px;width:30%;margin-bottom:12px"></div><div class="skel" style="height:30px;width:80%;margin-bottom:16px"></div><div class="skel" style="height:70px"></div></div><div class="card card-pad"><div class="skel" style="height:260px"></div></div>`);
@@ -2421,6 +2484,7 @@ function route() {
   const h = location.hash.replace(/^#\/?/, ''); const parts = h.split('/');
   S.currentDetail = null; S.onListChange = null; clearInterval(Stu.timer);
   $$('#modal-root .modal-wrap').forEach(w => w.remove());
+  if (parts[0] === 'e' && parts[1]) return startStudentShort(parts[1]);
   if (parts[0] === 'entregar' && parts[1]) return startStudent(parts[1]);
   S.mode = 'prof'; document.title = APP;
   if (!BOOT) return viewInstall();
@@ -2455,8 +2519,8 @@ if (BOOT) { const ss = sessStore.get(); if (ss && ss.contas?.[ss.conta]) applySe
 if (S.sess) {
   startPolling();
   $('#app').innerHTML = `<div style="height:100vh;display:grid;place-items:center">${ic('loader', 'spin')}</div>`;
-  if (location.hash.startsWith('#/entregar/')) route();
-  else watchConfig().catch(() => {}).then(() => S.sess && loadPerfil()).catch(() => {}).finally(() => { if (S.sess) route(); });
+  if (/^#\/(entregar|e)\//.test(location.hash)) route();
+  else watchConfig().catch(() => {}).then(() => S.sess && loadPerfil()).then(() => ensureLinkKeys()).catch(() => {}).finally(() => { if (S.sess) route(); });
 } else route();
 </script>
 </body>
