@@ -480,6 +480,8 @@ const APP = 'EntregaAcadêmica';
 const TAG = '[EA]';
 const TAG_ANX = '[EA-anexo]';
 const API = 'https://api.github.com';
+const CHUNK = 3 * 1048576;          // cada parte: 3 MB (≈4 MB em base64), múltiplo de 3
+const MAX_TOTAL_MB = 120;            // teto por entrega (soma dos arquivos)
 const JSZIP_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
 
 /* ---------- utilidades ---------- */
@@ -664,6 +666,19 @@ function atvStatus(a) {
 }
 const canSubmit = a => !(a.aberta === false || (a.prazo && new Date(a.prazo) < Date.now() && !a.aceitarAtrasados));
 const b64ToBlob = (b64, type) => { const bin = atob(String(b64).replace(/\s/g, '')); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], {type: type || 'application/octet-stream'}); };
+async function withRetry(fn, onWait) {
+  let delay = 2000;
+  for (let i = 0; ; i++) {
+    try { return await fn(); }
+    catch (e) {
+      const limit = (e.status === 403 || e.status === 429) && /rate|limit|abuse|secondary/i.test(e.message || '');
+      const transient = !e.status || [500, 502, 503, 504].includes(e.status) || limit;
+      if (i >= 4 || !transient) throw e;
+      const wait = limit ? 30000 : delay; onWait && onWait(wait); await sleep(wait); delay *= 2;
+    }
+  }
+}
+async function fetchRaw(url) { const r = await fetch(url, {cache:'no-store'}); if (!r.ok) throw new ApiError(r.status, 'Falha ao baixar parte do arquivo'); return r.text(); }
 const readB64 = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
 function downloadBlob(blob, name) { const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }
 
@@ -1150,7 +1165,7 @@ function paintAtividades() {
 /* ---------- FORMULÁRIO DE ATIVIDADE ---------- */
 async function viewForm(editId) {
   setPage({nav: editId ? 'atividades' : 'nova', title: editId ? 'Editar atividade' : 'Nova atividade', sub: editId ? 'As alterações aparecem na hora para os alunos' : 'Configure e gere o link de entrega', back:true});
-  let a = {modo:'arquivo', formatos:['pdf', 'doc'], maxMB:5, maxArquivos:3, exigirMatricula:true, exigirEmail:false, permitirReenvio:true, aceitarAtrasados:false, aberta:true};
+  let a = {modo:'arquivo', formatos:['pdf', 'doc'], maxMB:20, maxArquivos:3, exigirMatricula:true, exigirEmail:false, permitirReenvio:true, aceitarAtrasados:false, aberta:true};
   if (editId) {
     viewHTML('<div class="card card-pad"><div class="skel" style="height:300px"></div></div>', 'wrap narrow');
     try { const {d} = await loadDetail(editId); a = {...a, ...d.atv}; } catch (e) { toast(friendlyError(e), 'error'); return go('atividades'); }
@@ -1169,7 +1184,7 @@ async function viewForm(editId) {
       <div id="fileOpts">
         <div class="field"><span class="label">Formatos aceitos <span class="muted" style="font-weight:500">(nenhum marcado = qualquer formato)</span></span><div class="chips" id="fFmts">
           ${Object.entries(FORMATOS).map(([k, f]) => `<button type="button" class="chip ${a.formatos?.includes(k) ? 'on' : ''}" data-k="${k}" title=".${f.ext.join(' .')}">${ic('check')}${f.label}</button>`).join('')}</div></div>
-        <div class="row"><div class="field"><label for="fMax">Tamanho máximo por arquivo</label><select class="input" id="fMax">${[1, 2, 5, 8].map(n => `<option value="${n}" ${a.maxMB == n ? 'selected' : ''}>${n} MB</option>`).join('')}</select></div>
+        <div class="row"><div class="field"><label for="fMax">Tamanho máximo por arquivo</label><select class="input" id="fMax">${[5, 10, 20, 30, 50, 100].map(n => `<option value="${n}" ${a.maxMB == n ? 'selected' : ''}>${n} MB</option>`).join('')}</select><span class="hint">Arquivos grandes são divididos em partes automaticamente. Soma máxima por aluno: ${MAX_TOTAL_MB} MB.</span></div>
         <div class="field"><label for="fQtd">Máximo de arquivos por aluno</label><select class="input" id="fQtd">${[1, 2, 3, 5].map(n => `<option value="${n}" ${a.maxArquivos == n ? 'selected' : ''}>${n}</option>`).join('')}</select></div></div>
       </div>
     </section>
@@ -1312,9 +1327,13 @@ async function fetchAttachmentGist(gid) {
 async function getFileBlob(e, i) {
   const f = e.arquivos[i];
   const g = await fetchAttachmentGist(e.anexoGist);
-  const gf = g.files[f.arquivo]; if (!gf) throw new ApiError(404, 'Arquivo não encontrado');
-  const content = gf.truncated ? await (await fetch(gf.raw_url, {cache:'no-store'})).text() : gf.content;
-  return b64ToBlob(content, f.tipo);
+  const keys = f.partes || [f.arquivo], parts = [];
+  for (const k of keys) {
+    const gf = g.files[k]; if (!gf) throw new ApiError(404, 'Arquivo não encontrado');
+    const content = gf.truncated ? await withRetry(() => fetchRaw(gf.raw_url)) : gf.content;
+    parts.push(b64ToBlob(content));
+  }
+  return new Blob(parts, {type: f.tipo || 'application/octet-stream'});
 }
 function openEntrega(id, eid) {
   const d = S.details[id]?.d; const e = d?.entregas.find(x => x.id === eid); if (!e) return;
@@ -1573,6 +1592,7 @@ async function stuSubmit() {
   if (a.modo === 'arquivo' && !Stu.files.length) return toast('Anexe pelo menos um arquivo', 'error');
   if (a.modo === 'ambos' && !Stu.files.length && !v.link) return toast('Anexe um arquivo ou informe um link', 'error');
   const bad = Stu.files.find(f => fileProblem(f, a)); if (bad) return toast(`“${bad.name}”: ${fileProblem(bad, a)}`, 'error');
+  if (Stu.files.reduce((s, f) => s + f.size, 0) > MAX_TOTAL_MB * 1048576) return toast(`A soma dos arquivos passa de ${MAX_TOTAL_MB} MB`, 'error');
   if (!$('#tDecl').checked) return toast('Confirme a declaração de autoria', 'error');
   store.set('stu:perfil', {nome:v.nome, matricula:v.matricula, email:v.email});
 
@@ -1581,7 +1601,7 @@ async function stuSubmit() {
   const m = modal({title:'Enviando seu trabalho', size:'sm', body:`<div id="psteps">${steps.map((s, i) => `<div class="pstep" data-i="${i}"><span class="dot"></span><span>${s}</span></div>`).join('')}</div><div class="progress" style="margin-top:14px"><i id="pbar"></i></div><p class="small muted" id="ptxt" style="margin-top:8px;text-align:center">Não feche esta página.</p>`});
   m.wrap.onclick = null; m.$('[data-close]').hidden = true;
   const setStep = i => { cur = i; $$('.pstep', m.el).forEach((el, k) => { el.className = 'pstep' + (k < i ? ' ok' : k === i ? ' on' : ''); if (k < i) el.querySelector('.dot').innerHTML = ic('check'); }); $('#pbar', m.el).style.width = Math.round(i / steps.length * 100) + '%'; };
-  const token = Stu.info.t; let anexoGist = null;
+  const token = Stu.info.t; let anexoGist = null, wakeLock = null;
   try {
     setStep(0);
     // checagem de envio único e de prazo atualizada
@@ -1593,17 +1613,32 @@ async function stuSubmit() {
     }
     const id = uid(), protocolo = protoCode(), arquivos = [];
     if (Stu.files.length) {
-      const files = {};
-      for (let i = 0; i < Stu.files.length; i++) {
-        const f = Stu.files[i], key = `anexo-${i + 1}.b64`;
-        files[key] = {content: await readB64(f)};
-        arquivos.push({nome:f.name, tipo:f.type || '', tamanho:f.size, arquivo:key});
-      }
-      files['meta.json'] = {content: JSON.stringify({atividade:Stu.d.id, entrega:id, protocolo, nome:v.nome, arquivos}, null, 2)};
+      // divide cada arquivo em partes de 3 MB — permite arquivos grandes dentro dos limites do Gist
+      const plan = [];
+      Stu.files.forEach((f, i) => {
+        const n = Math.max(1, Math.ceil(f.size / CHUNK)), partes = [];
+        for (let j = 0; j < n; j++) { const key = `a${i + 1}-p${String(j + 1).padStart(3, '0')}.b64`; partes.push(key); plan.push({f, key, start:j * CHUNK, end:Math.min(f.size, (j + 1) * CHUNK)}); }
+        arquivos.push({nome:f.name, tipo:f.type || '', tamanho:f.size, partes});
+      });
+      const total = Stu.files.reduce((s, f) => s + f.size, 0); let sent = 0;
       setStep(1);
-      const g = await ghUpload('/gists', 'POST', {description:`${TAG_ANX} ${a.titulo} · ${v.nome}`, public:false, files}, token, p => {
-        const base = 1 / steps.length; $('#pbar', m.el).style.width = Math.round((base + p * base) * 100) + '%'; $('#ptxt', m.el).textContent = `Enviando… ${Math.round(p * 100)}%`; });
-      anexoGist = g.id;
+      try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+      const show = p => { const done = sent + p; const base = 1 / steps.length;
+        $('#pbar', m.el).style.width = Math.round((base + done / total * base) * 100) + '%';
+        $('#ptxt', m.el).textContent = `Enviando ${fmtSize(done)} de ${fmtSize(total)} (${Math.round(done / total * 100)}%) — mantenha a tela aberta`; };
+      const onWait = ms => { $('#ptxt', m.el).textContent = `Conexão instável, tentando de novo em ${Math.round(ms / 1000)}s…`; };
+      for (let k = 0; k < plan.length; k++) {
+        const pt = plan[k], size = pt.end - pt.start;
+        const files = {[pt.key]: {content: await readB64(pt.f.slice(pt.start, pt.end))}};
+        if (k === 0) {
+          files['meta.json'] = {content: JSON.stringify({atividade:Stu.d.id, entrega:id, protocolo, nome:v.nome, arquivos}, null, 2)};
+          const g = await withRetry(() => ghUpload('/gists', 'POST', {description:`${TAG_ANX} ${a.titulo} · ${v.nome}`, public:false, files}, token, p => show(p * size)), onWait);
+          anexoGist = g.id;
+        } else {
+          await withRetry(() => ghUpload('/gists/' + anexoGist, 'PATCH', {files}, token, p => show(p * size)), onWait);
+        }
+        sent += size; show(0);
+      }
     }
     setStep(steps.length - 2); $('#ptxt', m.el).textContent = 'Quase lá…';
     const entrega = {v:1, id, protocolo, nome:v.nome, matricula:v.matricula, email:v.email, link:v.link, comentario:v.comentario, arquivos, anexoGist,
@@ -1613,9 +1648,10 @@ async function stuSubmit() {
     await refreshStu();
     setStep(steps.length); $('#ptxt', m.el).textContent = 'Concluído!';
     const mine = store.get('stu:' + Stu.d.id, []); mine.unshift({id, protocolo, enviadoEm:entrega.enviadoEm}); store.set('stu:' + Stu.d.id, mine);
-    Stu.done = entrega; Stu.files = []; closedOk = true;
+    Stu.done = entrega; Stu.files = []; closedOk = true; try { wakeLock?.release(); } catch {}
     await sleep(500); m.close(); Stu.tab = 'enviar'; paintStudent(); window.scrollTo({top:0, behavior:'smooth'});
   } catch (e) {
+    try { wakeLock?.release(); } catch {}
     if (anexoGist) gh('/gists/' + anexoGist, {method:'DELETE', token}).catch(() => {});
     $$('.pstep', m.el).forEach((el, k) => { if (k === cur) { el.className = 'pstep'; el.style.color = 'var(--danger)'; el.querySelector('.dot').innerHTML = ic('x'); el.querySelector('.dot').style.borderColor = 'var(--danger)'; } });
     $('#ptxt', m.el).innerHTML = `<span style="color:var(--danger);font-weight:600">${esc(e.status === 0 ? e.message : friendlyError(e))}</span>`;
