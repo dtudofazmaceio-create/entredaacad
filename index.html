@@ -499,7 +499,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
    ========================================================= */
 const APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
 const APP = 'EntregaAcadêmica';
-const APP_VERSION = '5.2';           // versão deste arquivo
+const APP_VERSION = '5.3';           // versão deste arquivo
 const SHORT_LINK_MIN = '5.1';        // versão publicada mínima que entende links curtos (#/e/…)
 const verNum = v => String(v || '0').split('.').map(Number).reduce((a, n, i) => a + n / Math.pow(1000, i), 0);
 const TAG = '[EA]';
@@ -962,7 +962,9 @@ window.showHelp = () => modal({title:'Como funciona', size:'lg', body:`<div clas
 
 /* ---------- instalação, criptografia e configuração central ---------- */
 // BOOT é gravado dentro do HTML publicado (aponta para o Gist de configuração da instituição)
-let BOOT = (() => { try { const b = JSON.parse($('#ea-boot').textContent || '{}'); if (b.cfg) return b; } catch {} return store.get('boot', null); })();
+// Links de aluno servidos fora do Gist (ex.: GitHub Pages) levam ?i=<dono>.<idConfig>
+const URL_BOOT = (() => { try { const m = (new URLSearchParams(location.search).get('i') || '').match(/^([A-Za-z0-9-]{1,39})\.([0-9a-f]{20,40})$/i); return m ? {owner:m[1], cfg:m[2]} : null; } catch { return null; } })();
+let BOOT = (() => { try { const b = JSON.parse($('#ea-boot').textContent || '{}'); if (b.cfg) return b; } catch {} return store.get('boot', null) || URL_BOOT; })();
 const te = new TextEncoder(), td = new TextDecoder();
 const b64e = buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); };
 const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -1398,7 +1400,9 @@ function shareLink(id) {
   const b = (S.conf?.linkBase || appBase() || '').replace(/#.*$/, ''); if (!b) return null;
   const code = verNum(S.conf?.appVersion) >= verNum(SHORT_LINK_MIN) ? shortCode(id) : null;
   if (!code) return `${b}#/entregar/${encodeLink({g:id, t:tokG(id)})}`;
-  return S.conf?.linkBase ? `${b}#/e/${code}` : `${b.replace(/\?.*$/, '')}?e=${code}`;
+  // endereço próprio (GitHub Pages, site da escola…): abre direto, sem a página de aviso do githack
+  if (S.conf?.linkBase) return `${b.replace(/\?.*$/, '')}?i=${BOOT.owner}.${BOOT.cfg}&e=${code}`;
+  return `${b.replace(/\?.*$/, '')}?e=${code}`;
 }
 function shareMsg(a, link) {
   return `📚 *${a.titulo}*${a.turma ? ` — ${a.turma}` : ''}\n${a.prazo ? `🗓️ Prazo: ${fmtDTlong(a.prazo)}\n` : ''}Envie seu trabalho pelo link:\n${link}`;
@@ -2237,9 +2241,17 @@ function admSistema() {
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="sPub">${ic('upload')} ${c.appUrl ? 'Atualizar app publicado' : 'Publicar app'}</button>${c.appUrl ? `<a class="btn" href="${esc(c.appUrl)}" target="_blank" rel="noopener">${ic('external')} Abrir</a>` : ''}</div>
       <div class="info-list" style="margin:14px 0 4px"><div><span>Versão publicada</span><b>${esc(c.appVersion || 'anterior à 5.1')}${c.publicadoEm ? ' · ' + fmtDT(c.publicadoEm) : ''}</b></div><div><span>Versão deste aparelho</span><b>${APP_VERSION}</b></div><div><span>Links dos alunos</span><b>${verNum(c.appVersion) >= verNum(SHORT_LINK_MIN) ? 'curtos' : 'longos (atualize o app para usar links curtos)'}</b></div></div>
       <p class="hint" style="margin-top:10px">A atualização é automática quando um administrador entra com uma versão mais nova. Também é possível usar “Atualizar” manualmente sempre que receber uma nova versão do arquivo do sistema: abra a nova versão logado como administrador e clique aqui. O endereço não muda.</p></section>
-    <section class="card form-card"><h3>${ic('link')} Endereço curto para os links dos alunos <span class="badge muted">opcional</span></h3><p>Os links já saem curtos (endereço do sistema + código de 23 caracteres). Para encurtar ainda mais, use um endereço da escola que <b>redirecione</b> para o endereço do sistema — por exemplo <code>escola.edu.br/entregas</code>. Os professores passam a copiar links como <code>escola.edu.br/entregas#/e/AbC…</code>.</p>
-      <div class="input-group"><input class="input" id="sLinkBase" placeholder="https://escola.edu.br/entregas" value="${esc(c.linkBase || '')}"><button class="btn" id="sLinkOk">Salvar</button></div>
-      <p class="hint" style="margin-top:8px">Configure o redirecionamento no site da escola ou no painel do seu domínio apontando para: <span class="selectable">${esc(c.appUrl || '—')}</span>. Deixe vazio para usar o endereço padrão.</p></section>
+    <section class="card form-card"><h3>${ic('link')} Endereço dos links dos alunos <span class="badge ${c.linkBase ? 'success' : 'warn'}">${c.linkBase ? 'configurado' : 'recomendado'}</span></h3>
+      <p>O gist.githack.com mostra uma página de aviso (“One more step”) antes de abrir o app, e o aluno precisa clicar em “Open the page”. Para o link abrir <b>direto na página de envio</b>, hospede uma cópia do app num endereço próprio e informe-o aqui.</p>
+      <ol class="small" style="margin:0 0 12px 18px;color:var(--text-2);line-height:1.7">
+        <li>Clique em <b>Baixar app configurado</b> (arquivo <code>index.html</code>).</li>
+        <li>No GitHub da instituição, crie um repositório <b>público</b> (ex.: <code>entregas</code>) e envie esse arquivo (<i>Add file → Upload files</i>).</li>
+        <li>No repositório: <i>Settings → Pages → Deploy from a branch → main / (root) → Save</i>. Aguarde 1–2 minutos.</li>
+        <li>Cole abaixo o endereço gerado, ex.: <code>https://sua-conta.github.io/entregas/</code>, e salve.</li>
+      </ol>
+      <div style="margin-bottom:12px"><button class="btn" id="sDlApp">${ic('download')} Baixar app configurado</button></div>
+      <div class="input-group"><input class="input" id="sLinkBase" placeholder="https://sua-conta.github.io/entregas/" value="${esc(c.linkBase || '')}"><button class="btn" id="sLinkOk">Salvar</button></div>
+      <p class="hint" style="margin-top:8px">Serve qualquer hospedagem que entregue o arquivo como página (GitHub Pages, Netlify, site da escola). O link do aluno já informa qual sistema usar, então funciona mesmo se a cópia estiver desatualizada; para professores, baixe e reenvie o arquivo quando atualizar o sistema. Deixe vazio para voltar ao endereço do githack.</p></section>
     <section class="card form-card"><h3>${ic('phone')} Acesso em outros aparelhos</h3><p>Administradores e professores entram de qualquer aparelho só com usuário e senha — os tokens ficam cifrados na configuração e são liberados no login. Tudo é sincronizado: atividades, entregas, avaliações, itens lidos e preferências.</p>
       <div class="field"><span class="label">Endereço do sistema (recomendado)</span><span class="hint">Abra no novo aparelho e entre normalmente.</span></div>
       <div class="field" style="margin-bottom:0"><label for="sCode">Código de conexão</label><div class="input-group"><input class="input selectable" id="sCode" readonly value="${esc(bootCode())}" style="font-family:var(--mono);font-size:12.5px"><button class="btn" id="sCodeCp">${ic('copy')}</button></div><span class="hint">Use se abrir o arquivo do sistema localmente num aparelho novo: “Conectar a um sistema existente” → cole o código. Ele não contém senhas nem tokens.</span></div></section>
@@ -2253,10 +2265,11 @@ function admSistema() {
   $('#sInstOk').onclick = async () => { const v = $('#sInst').value.trim(); if (!v) return; try { await saveConfig(c => { c.instituicao = v; }); toast('Nome salvo. Atualize o app publicado para exibir na tela de acesso.', 'success', 5000); } catch (e) { toast(friendlyError(e), 'error'); } };
   const cp = $('#sCp'); if (cp) cp.onclick = () => copyText(c.appUrl, 'Endereço copiado');
   $('#sCodeCp').onclick = () => copyText(bootCode(), 'Código de conexão copiado');
+  $('#sDlApp').onclick = () => downloadBlob(new Blob([sourceWithBoot({cfg:BOOT.cfg, owner:BOOT.owner, inst:c.instituicao || ''})], {type:'text/html;charset=utf-8'}), 'index.html');
   $('#sLinkOk').onclick = async () => {
-    const v = $('#sLinkBase').value.trim().replace(/[#/]+$/, '');
+    const v = $('#sLinkBase').value.trim().replace(/[?#].*$/, '').replace(/^(https?:\/\/[^/]+(?:\/[^.]*[^/.])?)$/, '$1/');
     if (v && !/^https?:\/\/[^\s]+\.[^\s]+/.test(v)) return toast('Informe um endereço começando com https://', 'error');
-    try { await saveConfig(c => { if (v) c.linkBase = v; else delete c.linkBase; }); toast(v ? 'Endereço curto salvo. Os novos links já usam esse endereço.' : 'Voltando ao endereço padrão.', 'success', 5000); admSistema(); }
+    try { await saveConfig(c => { if (v) c.linkBase = v; else delete c.linkBase; }); toast(v ? 'Endereço salvo. Os links dos alunos agora abrem direto na página de envio.' : 'Voltando ao endereço padrão.', 'success', 5000); admSistema(); }
     catch (e) { toast(friendlyError(e), 'error'); }
   };
   $('#sPub').onclick = async () => { const b = $('#sPub'); busy(b, true, 'Publicando…'); try { await publishApp(); toast('App publicado! Pode levar até 1 minuto para atualizar.', 'success', 5000); admSistema(); } catch (e) { busy(b, false); toast(friendlyError(e), 'error'); } };
@@ -2515,11 +2528,11 @@ function paintMine() {
    ========================================================= */
 function route() {
   const qe = new URLSearchParams(location.search).get('e');
-  if (qe && !/^#\/e\//.test(location.hash)) { history.replaceState(null, '', location.pathname + '?e=' + encodeURIComponent(qe) + '#/e/' + qe); }
+  if (qe && !/^#\/e\//.test(location.hash)) { history.replaceState(null, '', location.pathname + location.search + '#/e/' + qe); }
   const h = location.hash.replace(/^#\/?/, ''); const parts = h.split('/');
   S.currentDetail = null; S.onListChange = null; clearInterval(Stu.timer);
   $$('#modal-root .modal-wrap').forEach(w => w.remove());
-  if (parts[0] === 'e' && parts[1]) return startStudentShort(parts[1]);
+  if (parts[0] === 'e' && parts[1]) { if (URL_BOOT) BOOT = {...(BOOT?.cfg === URL_BOOT.cfg ? BOOT : {}), ...URL_BOOT}; return startStudentShort(parts[1]); }
   if (parts[0] === 'entregar' && parts[1]) return startStudent(parts[1]);
   S.mode = 'prof'; document.title = APP;
   if (!BOOT) return viewInstall();
